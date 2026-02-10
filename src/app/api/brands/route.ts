@@ -5,6 +5,11 @@ export async function GET() {
   try {
     const brands = await prisma.brand.findMany({
       orderBy: { createdAt: "desc" },
+      include: {
+        _count: {
+          select: { contentJobs: true },
+        },
+      },
     });
     return NextResponse.json(brands);
   } catch (error) {
