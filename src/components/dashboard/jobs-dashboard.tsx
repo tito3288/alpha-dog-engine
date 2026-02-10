@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import {
   Table,
@@ -38,6 +39,7 @@ function formatDate(dateStr: string): string {
 }
 
 export function JobsDashboard() {
+  const router = useRouter();
   const [activeTab, setActiveTab] = useState<StatusTab>("all");
   const [selectedBrandId, setSelectedBrandId] = useState("all");
   const [jobs, setJobs] = useState<ContentJob[]>([]);
@@ -51,9 +53,11 @@ export function JobsDashboard() {
       if (brandId) params.set("brandId", brandId);
       const res = await fetch(`/api/jobs?${params.toString()}`);
       const data = await res.json();
-      setJobs(data);
+      // Ensure data is an array (API might return error object)
+      setJobs(Array.isArray(data) ? data : []);
     } catch (error) {
       console.error("Failed to fetch jobs:", error);
+      setJobs([]); // Ensure jobs is always an array
     }
   }, []);
 
@@ -66,9 +70,11 @@ export function JobsDashboard() {
           fetchJobs(),
         ]);
         const brandsData = await brandsRes.json();
-        setBrands(brandsData);
+        // Ensure brandsData is an array (API might return error object)
+        setBrands(Array.isArray(brandsData) ? brandsData : []);
       } catch (error) {
         console.error("Failed to load data:", error);
+        setBrands([]); // Ensure brands is always an array
       } finally {
         setIsLoading(false);
       }
@@ -108,29 +114,30 @@ export function JobsDashboard() {
   }
 
   return (
-    <div className="container mx-auto py-8 px-4">
-      <div className="flex items-center justify-between mb-6">
-        <h1 className="text-2xl font-bold text-foreground">Content Jobs</h1>
-        <div className="flex gap-2">
+    <div className="container mx-auto py-4 sm:py-8 px-4">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
+        <h1 className="text-xl sm:text-2xl font-bold text-foreground">Content Jobs</h1>
+        <div className="flex flex-wrap gap-2">
           <Button
             variant="outline"
             onClick={handleBatchGenerate}
             disabled={isBatchGenerating}
+            className="flex-1 sm:flex-none min-w-0"
           >
             {isBatchGenerating ? "Generating..." : "Generate All Idle"}
           </Button>
-          <Button asChild>
+          <Button asChild className="flex-1 sm:flex-none min-w-0">
             <Link href="/jobs/new">New Job</Link>
           </Button>
         </div>
       </div>
 
-      <div className="flex items-center gap-4 mb-4">
+      <div className="flex flex-col sm:flex-row sm:items-center gap-4 mb-4">
         <Tabs
           value={activeTab}
           onValueChange={(v) => setActiveTab(v as StatusTab)}
         >
-          <TabsList>
+          <TabsList className="flex-wrap h-auto">
             <TabsTrigger value="all">All</TabsTrigger>
             <TabsTrigger value="idle">Idle</TabsTrigger>
             <TabsTrigger value="in_progress">In Progress</TabsTrigger>
@@ -140,7 +147,7 @@ export function JobsDashboard() {
         </Tabs>
 
         <Select value={selectedBrandId} onValueChange={handleBrandChange}>
-          <SelectTrigger className="w-[200px]">
+          <SelectTrigger className="w-full sm:w-[200px]">
             <SelectValue placeholder="All Brands" />
           </SelectTrigger>
           <SelectContent>
@@ -154,7 +161,7 @@ export function JobsDashboard() {
         </Select>
       </div>
 
-      <div className="rounded-md border">
+      <div className="rounded-md border overflow-x-auto">
         <Table>
           <TableHeader>
             <TableRow>
@@ -176,7 +183,11 @@ export function JobsDashboard() {
               </TableRow>
             ) : (
               filteredJobs.map((job) => (
-                <TableRow key={job.id}>
+                <TableRow
+                  key={job.id}
+                  className="cursor-pointer hover:bg-accent/50 transition-colors"
+                  onClick={() => router.push(`/jobs/${job.id}`)}
+                >
                   <TableCell className="font-medium">{job.topic}</TableCell>
                   <TableCell>{job.brand.name}</TableCell>
                   <TableCell>

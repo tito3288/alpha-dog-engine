@@ -112,7 +112,7 @@ ${images
     (img, i) =>
       `Image ${i + 1}:
 - Placement: ${img.placement}
-- Markdown: ![${img.altText}](${img.imageUrl})
+- Markdown: ![${img.alt}](${img.url})
 ${img.caption ? `- Caption: *${img.caption}*` : ""}`
   )
   .join("\n\n")}`

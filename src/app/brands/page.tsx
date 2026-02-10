@@ -36,8 +36,14 @@ export default function BrandsPage() {
   useEffect(() => {
     fetch("/api/brands")
       .then((res) => res.json())
-      .then((data) => setBrands(data))
-      .catch((err) => console.error("Failed to fetch brands:", err))
+      .then((data) => {
+        // Ensure data is an array (API might return error object)
+        setBrands(Array.isArray(data) ? data : []);
+      })
+      .catch((err) => {
+        console.error("Failed to fetch brands:", err);
+        setBrands([]); // Ensure brands is always an array
+      })
       .finally(() => setLoading(false));
   }, []);
 
@@ -73,15 +79,15 @@ export default function BrandsPage() {
   }
 
   return (
-    <div className="container mx-auto py-8 px-4">
-      <div className="flex items-center justify-between mb-8">
+    <div className="container mx-auto py-4 sm:py-8 px-4">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-8">
         <div>
-          <h1 className="text-3xl font-bold">Brands</h1>
+          <h1 className="text-2xl sm:text-3xl font-bold">Brands</h1>
           <p className="text-muted-foreground mt-1">
             Manage your brand profiles
           </p>
         </div>
-        <Button onClick={() => setShowNewForm(!showNewForm)}>
+        <Button onClick={() => setShowNewForm(!showNewForm)} className="shrink-0">
           <Plus className="mr-2 h-4 w-4" /> New Brand
         </Button>
       </div>
@@ -92,8 +98,8 @@ export default function BrandsPage() {
             <CardTitle>Create New Brand</CardTitle>
           </CardHeader>
           <CardContent>
-            <form onSubmit={handleCreate} className="flex items-end gap-4">
-              <div className="flex-1">
+            <form onSubmit={handleCreate} className="flex flex-col sm:flex-row sm:items-end gap-4">
+              <div className="flex-1 w-full min-w-0">
                 <Label htmlFor="name">Brand Name</Label>
                 <Input
                   id="name"
@@ -103,7 +109,7 @@ export default function BrandsPage() {
                   required
                 />
               </div>
-              <div className="flex-1">
+              <div className="flex-1 w-full min-w-0">
                 <Label htmlFor="website">Website</Label>
                 <Input
                   id="website"
@@ -113,23 +119,25 @@ export default function BrandsPage() {
                   required
                 />
               </div>
-              <Button type="submit" disabled={creating}>
-                {creating ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />{" "}
-                    Creating...
-                  </>
-                ) : (
-                  "Create"
-                )}
-              </Button>
-              <Button
-                type="button"
-                variant="ghost"
-                onClick={() => setShowNewForm(false)}
-              >
-                Cancel
-              </Button>
+              <div className="flex gap-2">
+                <Button type="submit" disabled={creating}>
+                  {creating ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />{" "}
+                      Creating...
+                    </>
+                  ) : (
+                    "Create"
+                  )}
+                </Button>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  onClick={() => setShowNewForm(false)}
+                >
+                  Cancel
+                </Button>
+              </div>
             </form>
           </CardContent>
         </Card>

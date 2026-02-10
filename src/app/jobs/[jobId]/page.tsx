@@ -137,6 +137,19 @@ export default function JobDetailPage() {
     }
   }, [progress.status, fetchJob]);
 
+  // Poll for updates when job is in progress
+  useEffect(() => {
+    if (!job || ["completed", "failed", "idle"].includes(job.status)) {
+      return;
+    }
+
+    const interval = setInterval(() => {
+      fetchJob();
+    }, 3000); // Poll every 3 seconds
+
+    return () => clearInterval(interval);
+  }, [job, fetchJob]);
+
   const handleRegenerate = async () => {
     if (!jobId) return;
     setRegenerating(true);
@@ -265,18 +278,18 @@ export default function JobDetailPage() {
 
   return (
     <div className="dark min-h-screen bg-background text-foreground">
-      <div className="max-w-5xl mx-auto px-6 py-8">
+      <div className="max-w-5xl mx-auto px-4 sm:px-6 py-4 sm:py-8">
         {/* Header */}
-        <div className="flex items-start justify-between mb-8">
-          <div className="flex items-start gap-4">
+        <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4 mb-8">
+          <div className="flex items-start gap-4 min-w-0">
             <Link href="/">
-              <Button variant="ghost" size="icon">
+              <Button variant="ghost" size="icon" className="shrink-0">
                 <ArrowLeft className="h-4 w-4" />
               </Button>
             </Link>
-            <div>
-              <h1 className="text-2xl font-bold">{job.topic}</h1>
-              <div className="flex items-center gap-2 mt-1">
+            <div className="min-w-0 flex-1">
+              <h1 className="text-xl sm:text-2xl font-bold break-words">{job.topic}</h1>
+              <div className="flex flex-wrap items-center gap-2 mt-1">
                 <Badge variant="secondary">{job.brand.name}</Badge>
                 <Badge
                   variant={
@@ -294,27 +307,48 @@ export default function JobDetailPage() {
           </div>
           <Button
             onClick={handleRegenerate}
-            disabled={regenerating}
+            disabled={
+              regenerating ||
+              (job?.status !== "idle" &&
+                job?.status !== "completed" &&
+                job?.status !== "failed")
+            }
             variant="outline"
+            className={`w-full sm:w-auto shrink-0 min-w-[160px] transition-all ${
+              regenerating ||
+              (job?.status !== "idle" &&
+                job?.status !== "completed" &&
+                job?.status !== "failed")
+                ? "animate-pulse"
+                : ""
+            }`}
           >
-            {regenerating ? (
-              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+            {regenerating ||
+            (job?.status !== "idle" &&
+              job?.status !== "completed" &&
+              job?.status !== "failed") ? (
+              <>
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                {progress.message || "Generating..."}
+              </>
             ) : (
-              <RefreshCw className="h-4 w-4 mr-2" />
+              <>
+                <RefreshCw className="h-4 w-4 mr-2" />
+                Regenerate
+              </>
             )}
-            Regenerate
           </Button>
         </div>
 
         {/* Pipeline Progress */}
         <Card className="mb-8">
           <CardContent className="pt-6">
-            <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center justify-between gap-2 overflow-x-auto pb-2 -mx-1">
               {PIPELINE_STEPS.map((step, index) => {
                 const state = getStepState(step.key, activeStatus);
                 const Icon = step.icon;
                 return (
-                  <div key={step.key} className="flex items-center flex-1">
+                  <div key={step.key} className="flex items-center flex-1 min-w-[5rem] shrink-0">
                     <div className="flex flex-col items-center">
                       <div
                         className={`
@@ -377,7 +411,7 @@ export default function JobDetailPage() {
 
         {/* Content Tabs */}
         <Tabs defaultValue="article">
-          <TabsList className="mb-4">
+          <TabsList className="mb-4 flex-wrap h-auto sm:flex-nowrap overflow-x-auto">
             <TabsTrigger value="article">Article</TabsTrigger>
             <TabsTrigger value="research">Research</TabsTrigger>
             <TabsTrigger value="images">Images</TabsTrigger>
@@ -388,7 +422,7 @@ export default function JobDetailPage() {
           {/* Article Tab */}
           <TabsContent value="article">
             <Card>
-              <CardHeader className="flex flex-row items-center justify-between">
+              <CardHeader className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
                 <CardTitle>Article</CardTitle>
                 {job.articleContent && (
                   <CopyButton text={job.articleContent} label="Copy Markdown" />
@@ -396,7 +430,21 @@ export default function JobDetailPage() {
               </CardHeader>
               <CardContent>
                 {job.articleContent ? (
-                  <div className="prose prose-invert max-w-none prose-headings:text-foreground prose-p:text-foreground/80 prose-a:text-primary prose-strong:text-foreground prose-code:text-primary prose-pre:bg-muted prose-pre:text-foreground">
+                  <div className="prose prose-invert prose-lg max-w-none
+                    prose-headings:font-bold prose-headings:text-foreground prose-headings:mt-8 prose-headings:mb-4 first:prose-headings:mt-0
+                    prose-h1:text-3xl prose-h1:mb-6
+                    prose-h2:text-2xl prose-h2:mt-12 prose-h2:mb-4
+                    prose-h3:text-xl prose-h3:mt-8
+                    prose-p:text-foreground/90 prose-p:leading-relaxed prose-p:mb-4
+                    prose-a:text-primary prose-a:underline hover:prose-a:text-primary/80
+                    prose-strong:text-foreground prose-strong:font-semibold
+                    prose-ul:my-6 prose-ul:space-y-2
+                    prose-ol:my-6 prose-ol:space-y-2
+                    prose-li:text-foreground/90 prose-li:leading-relaxed
+                    prose-code:text-primary prose-code:bg-muted prose-code:px-1.5 prose-code:py-0.5 prose-code:rounded
+                    prose-pre:bg-muted prose-pre:text-foreground prose-pre:p-4 prose-pre:rounded-lg prose-pre:my-6
+                    prose-blockquote:border-l-primary prose-blockquote:text-foreground/80 prose-blockquote:italic
+                    prose-img:rounded-lg prose-img:my-8">
                     <ReactMarkdown remarkPlugins={[remarkGfm]}>
                       {job.articleContent}
                     </ReactMarkdown>
@@ -419,29 +467,68 @@ export default function JobDetailPage() {
               <CardContent>
                 {job.researchBrief ? (
                   researchData ? (
-                    <div className="space-y-6">
+                    <div className="space-y-8">
                       {Object.entries(researchData).map(([key, value]) => (
-                        <div key={key}>
-                          <h3 className="text-sm font-semibold text-foreground mb-2 capitalize">
+                        <div key={key} className="border-l-2 border-primary/30 pl-4">
+                          <h3 className="text-base font-bold text-foreground mb-3 capitalize">
                             {key.replace(/([A-Z])/g, " $1").replace(/_/g, " ")}
                           </h3>
                           {typeof value === "string" ? (
-                            <p className="text-sm text-muted-foreground">
+                            <p className="text-sm text-muted-foreground leading-relaxed">
                               {value}
                             </p>
                           ) : Array.isArray(value) ? (
-                            <ul className="list-disc list-inside space-y-1">
+                            <div className="space-y-3">
                               {value.map((item, i) => (
-                                <li
-                                  key={i}
-                                  className="text-sm text-muted-foreground"
-                                >
-                                  {typeof item === "string"
-                                    ? item
-                                    : JSON.stringify(item)}
-                                </li>
+                                <div key={i}>
+                                  {typeof item === "string" ? (
+                                    <div className="flex items-start gap-2">
+                                      <span className="text-primary mt-1">•</span>
+                                      <p className="text-sm text-muted-foreground flex-1">
+                                        {item}
+                                      </p>
+                                    </div>
+                                  ) : typeof item === "object" && item !== null ? (
+                                    <div className="bg-muted/50 rounded-lg p-4 space-y-2">
+                                      {Object.entries(item as Record<string, unknown>).map(
+                                        ([itemKey, itemValue]) => (
+                                          <div key={itemKey}>
+                                            <span className="text-xs font-semibold text-foreground/70 uppercase tracking-wide">
+                                              {itemKey.replace(/([A-Z])/g, " $1")}:
+                                            </span>
+                                            {Array.isArray(itemValue) ? (
+                                              <ul className="mt-1 ml-4 space-y-1">
+                                                {itemValue.map((subItem, j) => (
+                                                  <li
+                                                    key={j}
+                                                    className="text-sm text-muted-foreground flex items-start gap-2"
+                                                  >
+                                                    <span className="text-primary/60">→</span>
+                                                    <span className="flex-1">
+                                                      {typeof subItem === "string"
+                                                        ? subItem
+                                                        : JSON.stringify(subItem)}
+                                                    </span>
+                                                  </li>
+                                                ))}
+                                              </ul>
+                                            ) : (
+                                              <p className="text-sm text-muted-foreground mt-1">
+                                                {String(itemValue)}
+                                              </p>
+                                            )}
+                                          </div>
+                                        )
+                                      )}
+                                    </div>
+                                  ) : (
+                                    <p className="text-sm text-muted-foreground">
+                                      {JSON.stringify(item)}
+                                    </p>
+                                  )}
+                                </div>
                               ))}
-                            </ul>
+                            </div>
                           ) : (
                             <pre className="text-sm text-muted-foreground bg-muted p-3 rounded-md overflow-auto">
                               {JSON.stringify(value, null, 2)}
@@ -544,7 +631,7 @@ export default function JobDetailPage() {
                 {job.metaTitle || job.metaDescription || job.urlSlug ? (
                   <div className="space-y-4">
                     {job.metaTitle && (
-                      <div className="flex items-start justify-between gap-4 p-4 rounded-lg bg-muted">
+                      <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4 p-4 rounded-lg bg-muted">
                         <div className="flex-1 min-w-0">
                           <p className="text-xs text-muted-foreground mb-1">
                             Meta Title
@@ -555,7 +642,7 @@ export default function JobDetailPage() {
                       </div>
                     )}
                     {job.metaDescription && (
-                      <div className="flex items-start justify-between gap-4 p-4 rounded-lg bg-muted">
+                      <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4 p-4 rounded-lg bg-muted">
                         <div className="flex-1 min-w-0">
                           <p className="text-xs text-muted-foreground mb-1">
                             Meta Description
@@ -566,7 +653,7 @@ export default function JobDetailPage() {
                       </div>
                     )}
                     {job.urlSlug && (
-                      <div className="flex items-start justify-between gap-4 p-4 rounded-lg bg-muted">
+                      <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4 p-4 rounded-lg bg-muted">
                         <div className="flex-1 min-w-0">
                           <p className="text-xs text-muted-foreground mb-1">
                             URL Slug
@@ -599,9 +686,10 @@ export default function JobDetailPage() {
                   </p>
                 )}
 
-                <div className="flex gap-3 mb-6">
+                <div className="flex flex-col sm:flex-row gap-3 mb-6">
                   <Button
                     onClick={handleGenerateLinkedIn}
+                    className="w-full sm:w-auto"
                     disabled={!isCompleted || generatingLinkedin}
                   >
                     {generatingLinkedin && (
@@ -615,6 +703,7 @@ export default function JobDetailPage() {
                     onClick={handleGenerateYouTube}
                     disabled={!isCompleted || generatingYoutube}
                     variant="secondary"
+                    className="w-full sm:w-auto"
                   >
                     {generatingYoutube && (
                       <Loader2 className="h-4 w-4 mr-2 animate-spin" />

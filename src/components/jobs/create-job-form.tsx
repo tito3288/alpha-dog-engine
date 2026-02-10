@@ -117,7 +117,7 @@ export function CreateJobForm() {
   };
 
   return (
-    <div className="container mx-auto py-8 px-4 max-w-2xl">
+    <div className="container mx-auto py-4 sm:py-8 px-4 max-w-2xl">
       <div className="mb-6">
         <Button variant="ghost" asChild>
           <Link href="/">&larr; Back to Dashboard</Link>

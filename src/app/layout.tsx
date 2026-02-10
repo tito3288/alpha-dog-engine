@@ -1,6 +1,7 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import localFont from "next/font/local";
 import "./globals.css";
+import { Navigation } from "@/components/navigation";
 
 const geistSans = localFont({
   src: "./fonts/GeistVF.woff",
@@ -18,6 +19,11 @@ export const metadata: Metadata = {
   description: "Content generation pipeline dashboard",
 };
 
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+};
+
 export default function RootLayout({
   children,
 }: Readonly<{
@@ -26,8 +32,9 @@ export default function RootLayout({
   return (
     <html lang="en" className="dark">
       <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased min-h-screen bg-background`}
+        className={`${geistSans.variable} ${geistMono.variable} antialiased min-h-screen bg-background overflow-x-hidden`}
       >
+        <Navigation />
         {children}
       </body>
     </html>

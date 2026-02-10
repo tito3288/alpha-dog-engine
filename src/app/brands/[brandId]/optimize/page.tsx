@@ -150,15 +150,15 @@ export default function OptimizePage() {
   }
 
   return (
-    <div className="container mx-auto py-8 px-4 max-w-5xl">
-      <div className="flex items-center gap-4 mb-8">
+    <div className="container mx-auto py-4 sm:py-8 px-4 max-w-5xl">
+      <div className="flex items-start gap-4 mb-8">
         <Link href={`/brands/${brandId}`}>
-          <Button variant="ghost" size="icon">
+          <Button variant="ghost" size="icon" className="shrink-0">
             <ArrowLeft className="h-4 w-4" />
           </Button>
         </Link>
-        <div>
-          <h1 className="text-3xl font-bold">Content Optimization</h1>
+        <div className="min-w-0">
+          <h1 className="text-2xl sm:text-3xl font-bold">Content Optimization</h1>
           <p className="text-muted-foreground">
             Audit and optimize existing content for SEO
           </p>
@@ -167,8 +167,8 @@ export default function OptimizePage() {
 
       <Card className="mb-8">
         <CardContent className="pt-6">
-          <form onSubmit={handleOptimize} className="flex items-end gap-4">
-            <div className="flex-1">
+          <form onSubmit={handleOptimize} className="flex flex-col sm:flex-row sm:items-end gap-4">
+            <div className="flex-1 w-full min-w-0">
               <Label htmlFor="url">URL to Optimize</Label>
               <Input
                 id="url"
@@ -178,7 +178,7 @@ export default function OptimizePage() {
                 disabled={loading}
               />
             </div>
-            <Button type="submit" disabled={loading || !sourceUrl}>
+            <Button type="submit" disabled={loading || !sourceUrl} className="shrink-0">
               {loading ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />

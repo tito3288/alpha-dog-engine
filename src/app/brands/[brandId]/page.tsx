@@ -293,20 +293,20 @@ export default function BrandEditPage() {
   }
 
   return (
-    <div className="container mx-auto py-8 px-4 max-w-4xl">
-      <div className="flex items-center justify-between mb-6">
-        <div className="flex items-center gap-4">
+    <div className="container mx-auto py-4 sm:py-8 px-4 max-w-4xl">
+      <div className="flex flex-col gap-4 mb-6">
+        <div className="flex items-start gap-4">
           <Link href="/brands">
-            <Button variant="ghost" size="icon">
+            <Button variant="ghost" size="icon" className="shrink-0">
               <ArrowLeft className="h-4 w-4" />
             </Button>
           </Link>
-          <div>
-            <h1 className="text-3xl font-bold">{form.name || "Edit Brand"}</h1>
-            <p className="text-muted-foreground">{form.website}</p>
+          <div className="min-w-0 flex-1">
+            <h1 className="text-2xl sm:text-3xl font-bold truncate">{form.name || "Edit Brand"}</h1>
+            <p className="text-muted-foreground truncate">{form.website}</p>
           </div>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap gap-2">
           <Link href={`/brands/${brandId}/optimize`}>
             <Button variant="outline">
               <Search className="mr-2 h-4 w-4" /> Optimize Content
@@ -344,7 +344,7 @@ export default function BrandEditPage() {
       )}
 
       <Tabs defaultValue="general" className="w-full">
-        <TabsList className="grid w-full grid-cols-6">
+        <TabsList className="flex flex-wrap h-auto gap-1 w-full justify-start">
           <TabsTrigger value="general">General</TabsTrigger>
           <TabsTrigger value="voice">Voice & Style</TabsTrigger>
           <TabsTrigger value="seo">SEO</TabsTrigger>
@@ -640,8 +640,8 @@ export default function BrandEditPage() {
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="flex items-end gap-4 mb-6">
-                <div className="flex-1">
+              <div className="flex flex-col sm:flex-row sm:items-end gap-4 mb-6">
+                <div className="flex-1 w-full min-w-0">
                   <Label htmlFor="sitemapUrl">Sitemap URL</Label>
                   <Input
                     id="sitemapUrl"
@@ -650,7 +650,7 @@ export default function BrandEditPage() {
                     placeholder="https://example.com/sitemap.xml"
                   />
                 </div>
-                <Button onClick={handleSitemapSync} disabled={syncing || !sitemapUrl}>
+                <Button onClick={handleSitemapSync} disabled={syncing || !sitemapUrl} className="shrink-0">
                   {syncing ? (
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                   ) : (
@@ -668,7 +668,8 @@ export default function BrandEditPage() {
                   click Sync.
                 </p>
               ) : (
-                <Table>
+                <div className="overflow-x-auto">
+                  <Table>
                   <TableHeader>
                     <TableRow>
                       <TableHead>URL</TableHead>
@@ -692,6 +693,7 @@ export default function BrandEditPage() {
                     ))}
                   </TableBody>
                 </Table>
+                </div>
               )}
             </CardContent>
           </Card>

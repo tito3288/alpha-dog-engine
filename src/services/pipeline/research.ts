@@ -99,18 +99,25 @@ export async function runResearch(
   const prompt = `You are an expert SEO content researcher. Your task is to research the topic "${topic}" and produce a comprehensive content brief.
 ${keywordsClause}
 
-Follow these steps:
-1. Search Google for the main topic and any related keywords to understand the SERP landscape.
-2. Scrape the top 3-5 ranking pages from the organic results to analyze their content.
-3. Analyze the search intent (informational, transactional, or navigational).
-4. Identify competitive gaps — what the top-ranking pages cover that others miss, and what opportunities exist.
-5. Recommend a content structure with headings, sections, and a word count target.
+IMPORTANT: You MUST use the provided tools to conduct real research. DO NOT make up or hallucinate data.
 
-After completing your research, respond with ONLY a JSON object (no markdown fences) matching this exact structure:
+REQUIRED STEPS (you must complete ALL of these):
+1. FIRST: Call search_google for the main topic "${topic}" to get real SERP data
+2. THEN: Call search_google for each of the related keywords to gather more data
+3. THEN: Call scrape_url on the top 3-5 URLs from the organic search results to analyze their actual content
+4. ONLY AFTER gathering all this real data, analyze it to determine:
+   - Search intent (informational, transactional, or navigational)
+   - Key points from each competitor URL
+   - People Also Ask questions (from search results)
+   - Related searches (from search results)
+   - Content structure based on what's working
+   - Competitive gaps and opportunities
+
+After you have called the tools and gathered REAL data, respond with ONLY a JSON object (no markdown fences) matching this exact structure:
 {
   "searchIntent": "informational | transactional | navigational",
   "topCompetitors": [
-    { "url": "https://...", "keyPoints": ["point 1", "point 2"] }
+    { "url": "https://actual-competitor.com", "keyPoints": ["point 1", "point 2"] }
   ],
   "peopleAlsoAsk": ["question 1", "question 2"],
   "relatedSearches": ["search 1", "search 2"],
@@ -121,7 +128,7 @@ After completing your research, respond with ONLY a JSON object (no markdown fen
   "targetWordCount": 2000
 }
 
-Be thorough in your research. Use the search_google tool to explore the topic and related queries. Use the scrape_url tool to deeply analyze the top-ranking content. Then synthesize everything into the JSON brief.`;
+CRITICAL: You cannot respond with the final JSON until you have called search_google and scrape_url multiple times to gather real data. Do not use placeholder URLs like example.com - use the actual URLs from your search results.`;
 
   emit({ stage: "analyzing", detail: "Running Gemini agent loop" });
 

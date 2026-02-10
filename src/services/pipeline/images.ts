@@ -12,8 +12,8 @@ export interface ImageSpec {
 
 export interface ArticleImage {
   placement: string;
-  imageUrl: string;
-  altText: string;
+  url: string;
+  alt: string;
   caption: string | null;
 }
 
@@ -124,8 +124,8 @@ ${researchBrief}`;
 
       images.push({
         placement: spec.placement,
-        imageUrl: generated.url,
-        altText: spec.altText,
+        url: generated.url,
+        alt: spec.altText,
         caption: spec.caption || null,
       });
 
