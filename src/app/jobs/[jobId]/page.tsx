@@ -41,6 +41,8 @@ interface ContentJob {
   urlSlug: string | null;
   images: string | null;
   thumbnailUrl: string | null;
+  linkedinPost: string | null;
+  youtubeScript: string | null;
   errorMessage: string | null;
   createdAt: string;
   updatedAt: string;
@@ -101,6 +103,8 @@ export default function JobDetailPage() {
   const [job, setJob] = useState<ContentJob | null>(null);
   const [loading, setLoading] = useState(true);
   const [regenerating, setRegenerating] = useState(false);
+  const [generatingLinkedin, setGeneratingLinkedin] = useState(false);
+  const [generatingYoutube, setGeneratingYoutube] = useState(false);
 
   const progress = useJobProgress(
     jobId && job && !["completed", "failed", "idle"].includes(job.status)
@@ -148,10 +152,78 @@ export default function JobDetailPage() {
     }
   };
 
+  const handleGenerateLinkedIn = async () => {
+    if (!jobId) return;
+    setGeneratingLinkedin(true);
+
+    const es = new EventSource(`/api/jobs/${jobId}/progress`);
+    es.onmessage = (event) => {
+      const data = JSON.parse(event.data);
+      if (data.status === "completed" || data.status === "failed") {
+        es.close();
+        setGeneratingLinkedin(false);
+        fetchJob();
+      }
+    };
+    es.onerror = () => {
+      es.close();
+      setGeneratingLinkedin(false);
+      fetchJob();
+    };
+
+    try {
+      const res = await fetch(`/api/jobs/${jobId}/repurpose/linkedin`, {
+        method: "POST",
+      });
+      if (!res.ok) {
+        es.close();
+        setGeneratingLinkedin(false);
+      }
+    } catch {
+      es.close();
+      setGeneratingLinkedin(false);
+    }
+  };
+
+  const handleGenerateYouTube = async () => {
+    if (!jobId) return;
+    setGeneratingYoutube(true);
+
+    const es = new EventSource(`/api/jobs/${jobId}/progress`);
+    es.onmessage = (event) => {
+      const data = JSON.parse(event.data);
+      if (data.status === "completed" || data.status === "failed") {
+        es.close();
+        setGeneratingYoutube(false);
+        fetchJob();
+      }
+    };
+    es.onerror = () => {
+      es.close();
+      setGeneratingYoutube(false);
+      fetchJob();
+    };
+
+    try {
+      const res = await fetch(`/api/jobs/${jobId}/repurpose/youtube`, {
+        method: "POST",
+      });
+      if (!res.ok) {
+        es.close();
+        setGeneratingYoutube(false);
+      }
+    } catch {
+      es.close();
+      setGeneratingYoutube(false);
+    }
+  };
+
   const activeStatus =
     progress.status !== "idle" && progress.status !== "connected"
       ? progress.status
       : job?.status ?? "idle";
+
+  const isCompleted = job?.status === "completed";
 
   const parsedImages: Array<{
     url: string;
@@ -310,6 +382,7 @@ export default function JobDetailPage() {
             <TabsTrigger value="research">Research</TabsTrigger>
             <TabsTrigger value="images">Images</TabsTrigger>
             <TabsTrigger value="meta">Meta</TabsTrigger>
+            <TabsTrigger value="repurpose">Repurpose</TabsTrigger>
           </TabsList>
 
           {/* Article Tab */}
@@ -508,6 +581,97 @@ export default function JobDetailPage() {
                   <p className="text-muted-foreground">
                     No metadata yet. Run the pipeline to generate.
                   </p>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* Repurpose Tab */}
+          <TabsContent value="repurpose">
+            <Card>
+              <CardHeader>
+                <CardTitle>Repurpose Content</CardTitle>
+              </CardHeader>
+              <CardContent>
+                {!isCompleted && (
+                  <p className="text-muted-foreground mb-4">
+                    Content repurposing is available once the job is completed.
+                  </p>
+                )}
+
+                <div className="flex gap-3 mb-6">
+                  <Button
+                    onClick={handleGenerateLinkedIn}
+                    disabled={!isCompleted || generatingLinkedin}
+                  >
+                    {generatingLinkedin && (
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    )}
+                    {generatingLinkedin
+                      ? "Generating..."
+                      : "Generate LinkedIn Post"}
+                  </Button>
+                  <Button
+                    onClick={handleGenerateYouTube}
+                    disabled={!isCompleted || generatingYoutube}
+                    variant="secondary"
+                  >
+                    {generatingYoutube && (
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    )}
+                    {generatingYoutube
+                      ? "Generating..."
+                      : "Generate YouTube Script"}
+                  </Button>
+                </div>
+
+                {(job.linkedinPost || job.youtubeScript) && (
+                  <Tabs defaultValue={job.linkedinPost ? "linkedin" : "youtube"}>
+                    <TabsList className="mb-4">
+                      <TabsTrigger value="linkedin">LinkedIn Post</TabsTrigger>
+                      <TabsTrigger value="youtube">YouTube Script</TabsTrigger>
+                    </TabsList>
+
+                    <TabsContent value="linkedin">
+                      {job.linkedinPost ? (
+                        <div>
+                          <div className="flex justify-end mb-3">
+                            <CopyButton
+                              text={job.linkedinPost}
+                              label="Copy Post"
+                            />
+                          </div>
+                          <pre className="whitespace-pre-wrap text-sm text-foreground/80 bg-muted rounded-lg p-4 max-h-96 overflow-y-auto">
+                            {job.linkedinPost}
+                          </pre>
+                        </div>
+                      ) : (
+                        <p className="text-muted-foreground">
+                          No LinkedIn post generated yet.
+                        </p>
+                      )}
+                    </TabsContent>
+
+                    <TabsContent value="youtube">
+                      {job.youtubeScript ? (
+                        <div>
+                          <div className="flex justify-end mb-3">
+                            <CopyButton
+                              text={job.youtubeScript}
+                              label="Copy Script"
+                            />
+                          </div>
+                          <pre className="whitespace-pre-wrap text-sm text-foreground/80 bg-muted rounded-lg p-4 max-h-96 overflow-y-auto">
+                            {job.youtubeScript}
+                          </pre>
+                        </div>
+                      ) : (
+                        <p className="text-muted-foreground">
+                          No YouTube script generated yet.
+                        </p>
+                      )}
+                    </TabsContent>
+                  </Tabs>
                 )}
               </CardContent>
             </Card>
