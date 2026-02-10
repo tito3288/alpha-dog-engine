@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { enqueueJob } from "@/lib/job-queue";
 
+export const dynamic = 'force-dynamic';
+
 export async function POST() {
   try {
     const idleJobs = await prisma.contentJob.findMany({

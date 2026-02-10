@@ -3,6 +3,8 @@ import { searchGoogle } from "@/services/external/serpapi";
 import { scrapeUrl } from "@/services/external/firecrawl";
 import { generateImage } from "@/services/external/falai";
 
+export const dynamic = 'force-dynamic';
+
 export async function GET() {
   const results: Record<string, unknown> = {};
 

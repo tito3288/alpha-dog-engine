@@ -7,6 +7,8 @@ import {
   SchemaType,
 } from "@/services/ai/gemini";
 
+export const dynamic = 'force-dynamic';
+
 export async function GET() {
   const results: Record<string, unknown> = {};
 
