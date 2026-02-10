@@ -1,56 +1,126 @@
 "use client";
 
-import { useState, useEffect, useCallback, use } from "react";
+import { useEffect, useState, useCallback } from "react";
+import { useParams } from "next/navigation";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
+import { useJobProgress } from "@/hooks/useJobProgress";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import {
+  Check,
+  Search,
+  ImageIcon,
+  PenTool,
+  Tag,
+  LayoutGrid,
+  RefreshCw,
+  Copy,
+  ArrowLeft,
+  Loader2,
+} from "lucide-react";
+import Link from "next/link";
 
 interface Brand {
   id: number;
   name: string;
-  website: string;
-  description: string | null;
 }
 
-interface Job {
+interface ContentJob {
   id: number;
+  brandId: number;
   topic: string;
-  status: string;
   keywords: string | null;
+  status: string;
+  researchBrief: string | null;
   articleContent: string | null;
-  linkedinPost: string | null;
-  youtubeScript: string | null;
   metaTitle: string | null;
   metaDescription: string | null;
   urlSlug: string | null;
+  images: string | null;
   thumbnailUrl: string | null;
+  linkedinPost: string | null;
+  youtubeScript: string | null;
   errorMessage: string | null;
   createdAt: string;
   updatedAt: string;
   brand: Brand;
 }
 
-type RepurposeTab = "linkedin" | "youtube";
+const PIPELINE_STEPS = [
+  { key: "researching", label: "Research", icon: Search },
+  { key: "generating_images", label: "Images", icon: ImageIcon },
+  { key: "writing", label: "Writing", icon: PenTool },
+  { key: "generating_meta", label: "Meta", icon: Tag },
+  { key: "generating_thumbnail", label: "Thumbnail", icon: LayoutGrid },
+] as const;
 
-export default function JobDetailPage({
-  params,
-}: {
-  params: Promise<{ jobId: string }>;
-}) {
-  const { jobId } = use(params);
-  const [job, setJob] = useState<Job | null>(null);
+function getStepState(
+  stepKey: string,
+  currentStatus: string
+): "completed" | "active" | "pending" {
+  const stepIndex = PIPELINE_STEPS.findIndex((s) => s.key === stepKey);
+  const currentIndex = PIPELINE_STEPS.findIndex(
+    (s) => s.key === currentStatus
+  );
+
+  if (currentStatus === "completed") return "completed";
+  if (currentStatus === "failed") {
+    return stepIndex <= currentIndex ? "completed" : "pending";
+  }
+  if (stepIndex < currentIndex) return "completed";
+  if (stepIndex === currentIndex) return "active";
+  return "pending";
+}
+
+function CopyButton({ text, label }: { text: string; label?: string }) {
+  const [copied, setCopied] = useState(false);
+
+  const handleCopy = () => {
+    navigator.clipboard.writeText(text);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  return (
+    <Button variant="outline" size="sm" onClick={handleCopy}>
+      {copied ? (
+        <Check className="h-3 w-3 mr-1" />
+      ) : (
+        <Copy className="h-3 w-3 mr-1" />
+      )}
+      {copied ? "Copied" : label ?? "Copy"}
+    </Button>
+  );
+}
+
+export default function JobDetailPage() {
+  const params = useParams();
+  const jobId = params.jobId ? parseInt(params.jobId as string, 10) : null;
+
+  const [job, setJob] = useState<ContentJob | null>(null);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<RepurposeTab>("linkedin");
+  const [regenerating, setRegenerating] = useState(false);
   const [generatingLinkedin, setGeneratingLinkedin] = useState(false);
   const [generatingYoutube, setGeneratingYoutube] = useState(false);
-  const [copiedField, setCopiedField] = useState<string | null>(null);
+
+  const progress = useJobProgress(
+    jobId && job && !["completed", "failed", "idle"].includes(job.status)
+      ? jobId
+      : null
+  );
 
   const fetchJob = useCallback(async () => {
+    if (!jobId) return;
     try {
       const res = await fetch(`/api/jobs/${jobId}`);
       if (res.ok) {
-        const data = await res.json();
-        setJob(data);
+        setJob(await res.json());
       }
-    } catch (error) {
-      console.error("Failed to fetch job:", error);
+    } catch (err) {
+      console.error("Failed to fetch job:", err);
     } finally {
       setLoading(false);
     }
@@ -60,11 +130,32 @@ export default function JobDetailPage({
     fetchJob();
   }, [fetchJob]);
 
+  // Refetch job data when pipeline completes or fails
+  useEffect(() => {
+    if (progress.status === "completed" || progress.status === "failed") {
+      fetchJob();
+    }
+  }, [progress.status, fetchJob]);
+
+  const handleRegenerate = async () => {
+    if (!jobId) return;
+    setRegenerating(true);
+    try {
+      const res = await fetch(`/api/jobs/${jobId}/generate`, { method: "POST" });
+      if (res.ok) {
+        await fetchJob();
+      }
+    } catch (err) {
+      console.error("Failed to regenerate:", err);
+    } finally {
+      setRegenerating(false);
+    }
+  };
+
   const handleGenerateLinkedIn = async () => {
-    if (!job) return;
+    if (!jobId) return;
     setGeneratingLinkedin(true);
 
-    // Open SSE connection before triggering
     const es = new EventSource(`/api/jobs/${jobId}/progress`);
     es.onmessage = (event) => {
       const data = JSON.parse(event.data);
@@ -87,18 +178,15 @@ export default function JobDetailPage({
       if (!res.ok) {
         es.close();
         setGeneratingLinkedin(false);
-        const err = await res.json();
-        alert(err.error || "Failed to start LinkedIn generation");
       }
     } catch {
       es.close();
       setGeneratingLinkedin(false);
-      alert("Failed to start LinkedIn generation");
     }
   };
 
   const handleGenerateYouTube = async () => {
-    if (!job) return;
+    if (!jobId) return;
     setGeneratingYoutube(true);
 
     const es = new EventSource(`/api/jobs/${jobId}/progress`);
@@ -123,259 +211,473 @@ export default function JobDetailPage({
       if (!res.ok) {
         es.close();
         setGeneratingYoutube(false);
-        const err = await res.json();
-        alert(err.error || "Failed to start YouTube generation");
       }
     } catch {
       es.close();
       setGeneratingYoutube(false);
-      alert("Failed to start YouTube generation");
     }
   };
 
-  const copyToClipboard = async (text: string, field: string) => {
+  const activeStatus =
+    progress.status !== "idle" && progress.status !== "connected"
+      ? progress.status
+      : job?.status ?? "idle";
+
+  const isCompleted = job?.status === "completed";
+
+  const parsedImages: Array<{
+    url: string;
+    alt?: string;
+    caption?: string;
+  }> = (() => {
+    if (!job?.images) return [];
     try {
-      await navigator.clipboard.writeText(text);
-      setCopiedField(field);
-      setTimeout(() => setCopiedField(null), 2000);
+      return JSON.parse(job.images);
     } catch {
-      console.error("Failed to copy to clipboard");
+      return [];
     }
-  };
+  })();
+
+  let researchData: Record<string, unknown> | null = null;
+  if (job?.researchBrief) {
+    try {
+      researchData = JSON.parse(job.researchBrief);
+    } catch {
+      // researchBrief is plain text, not JSON
+    }
+  }
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <p className="text-gray-500">Loading job...</p>
+      <div className="dark min-h-screen bg-background text-foreground flex items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
       </div>
     );
   }
 
   if (!job) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <p className="text-red-500">Job not found</p>
+      <div className="dark min-h-screen bg-background text-foreground flex items-center justify-center">
+        <p className="text-muted-foreground">Job not found.</p>
       </div>
     );
   }
 
-  const isCompleted = job.status === "completed";
-
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 p-8">
-      <div className="max-w-4xl mx-auto space-y-8">
+    <div className="dark min-h-screen bg-background text-foreground">
+      <div className="max-w-5xl mx-auto px-6 py-8">
         {/* Header */}
-        <div>
-          <a
-            href="/jobs"
-            className="text-sm text-blue-600 hover:underline dark:text-blue-400"
-          >
-            &larr; Back to jobs
-          </a>
-          <h1 className="mt-2 text-2xl font-bold text-gray-900 dark:text-gray-100">
-            {job.topic}
-          </h1>
-          <div className="mt-2 flex items-center gap-3">
-            <StatusBadge status={job.status} />
-            <span className="text-sm text-gray-500 dark:text-gray-400">
-              Brand: {job.brand.name}
-            </span>
-            {job.keywords && (
-              <span className="text-sm text-gray-500 dark:text-gray-400">
-                Keywords: {job.keywords}
-              </span>
-            )}
+        <div className="flex items-start justify-between mb-8">
+          <div className="flex items-start gap-4">
+            <Link href="/">
+              <Button variant="ghost" size="icon">
+                <ArrowLeft className="h-4 w-4" />
+              </Button>
+            </Link>
+            <div>
+              <h1 className="text-2xl font-bold">{job.topic}</h1>
+              <div className="flex items-center gap-2 mt-1">
+                <Badge variant="secondary">{job.brand.name}</Badge>
+                <Badge
+                  variant={
+                    activeStatus === "completed"
+                      ? "default"
+                      : activeStatus === "failed"
+                        ? "destructive"
+                        : "secondary"
+                  }
+                >
+                  {activeStatus}
+                </Badge>
+              </div>
+            </div>
           </div>
+          <Button
+            onClick={handleRegenerate}
+            disabled={regenerating}
+            variant="outline"
+          >
+            {regenerating ? (
+              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+            ) : (
+              <RefreshCw className="h-4 w-4 mr-2" />
+            )}
+            Regenerate
+          </Button>
         </div>
 
-        {/* Meta Info */}
-        {isCompleted && (job.metaTitle || job.metaDescription || job.urlSlug) && (
-          <section className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-6">
-            <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">
-              SEO Meta
-            </h2>
-            <div className="space-y-2 text-sm">
-              {job.metaTitle && (
-                <p>
-                  <span className="font-medium text-gray-700 dark:text-gray-300">
-                    Title:
-                  </span>{" "}
-                  <span className="text-gray-600 dark:text-gray-400">{job.metaTitle}</span>
-                </p>
-              )}
-              {job.metaDescription && (
-                <p>
-                  <span className="font-medium text-gray-700 dark:text-gray-300">
-                    Description:
-                  </span>{" "}
-                  <span className="text-gray-600 dark:text-gray-400">
-                    {job.metaDescription}
-                  </span>
-                </p>
-              )}
-              {job.urlSlug && (
-                <p>
-                  <span className="font-medium text-gray-700 dark:text-gray-300">
-                    Slug:
-                  </span>{" "}
-                  <span className="text-gray-600 dark:text-gray-400">{job.urlSlug}</span>
-                </p>
-              )}
-            </div>
-          </section>
-        )}
-
-        {/* Repurpose Section */}
-        <section className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-6">
-          <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">
-            Repurpose Content
-          </h2>
-
-          {!isCompleted && (
-            <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
-              Content repurposing is available once the job is completed.
-            </p>
-          )}
-
-          {/* Action Buttons */}
-          <div className="flex gap-3 mb-6">
-            <button
-              onClick={handleGenerateLinkedIn}
-              disabled={!isCompleted || generatingLinkedin}
-              className="px-4 py-2 text-sm font-medium rounded-lg bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-            >
-              {generatingLinkedin ? "Generating..." : "Generate LinkedIn Post"}
-            </button>
-            <button
-              onClick={handleGenerateYouTube}
-              disabled={!isCompleted || generatingYoutube}
-              className="px-4 py-2 text-sm font-medium rounded-lg bg-red-600 text-white hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-            >
-              {generatingYoutube ? "Generating..." : "Generate YouTube Script"}
-            </button>
-          </div>
-
-          {/* Tabs */}
-          {(job.linkedinPost || job.youtubeScript) && (
-            <div>
-              <div className="flex border-b border-gray-200 dark:border-gray-700">
-                <button
-                  onClick={() => setActiveTab("linkedin")}
-                  className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
-                    activeTab === "linkedin"
-                      ? "border-blue-600 text-blue-600 dark:text-blue-400"
-                      : "border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300"
-                  }`}
-                >
-                  LinkedIn Post
-                </button>
-                <button
-                  onClick={() => setActiveTab("youtube")}
-                  className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
-                    activeTab === "youtube"
-                      ? "border-red-600 text-red-600 dark:text-red-400"
-                      : "border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300"
-                  }`}
-                >
-                  YouTube Script
-                </button>
-              </div>
-
-              <div className="mt-4">
-                {activeTab === "linkedin" && (
-                  <div>
-                    {job.linkedinPost ? (
-                      <div>
-                        <div className="flex justify-end mb-2">
-                          <button
-                            onClick={() =>
-                              copyToClipboard(job.linkedinPost!, "linkedin")
-                            }
-                            className="px-3 py-1 text-xs font-medium rounded bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 transition-colors"
-                          >
-                            {copiedField === "linkedin"
-                              ? "Copied!"
-                              : "Copy to Clipboard"}
-                          </button>
-                        </div>
-                        <pre className="whitespace-pre-wrap text-sm text-gray-700 dark:text-gray-300 bg-gray-50 dark:bg-gray-900 rounded-lg p-4 max-h-96 overflow-y-auto">
-                          {job.linkedinPost}
-                        </pre>
+        {/* Pipeline Progress */}
+        <Card className="mb-8">
+          <CardContent className="pt-6">
+            <div className="flex items-center justify-between mb-4">
+              {PIPELINE_STEPS.map((step, index) => {
+                const state = getStepState(step.key, activeStatus);
+                const Icon = step.icon;
+                return (
+                  <div key={step.key} className="flex items-center flex-1">
+                    <div className="flex flex-col items-center">
+                      <div
+                        className={`
+                          w-10 h-10 rounded-full flex items-center justify-center border-2 transition-colors
+                          ${
+                            state === "completed"
+                              ? "bg-green-500/20 border-green-500 text-green-500"
+                              : state === "active"
+                                ? "bg-primary/20 border-primary text-primary animate-pulse"
+                                : "bg-muted border-muted-foreground/30 text-muted-foreground/50"
+                          }
+                        `}
+                      >
+                        {state === "completed" ? (
+                          <Check className="h-4 w-4" />
+                        ) : (
+                          <Icon className="h-4 w-4" />
+                        )}
                       </div>
-                    ) : (
-                      <p className="text-sm text-gray-500 dark:text-gray-400">
-                        No LinkedIn post generated yet. Click the button above
-                        to generate one.
-                      </p>
+                      <span
+                        className={`text-xs mt-2 ${
+                          state === "active"
+                            ? "text-foreground font-medium"
+                            : state === "completed"
+                              ? "text-green-500"
+                              : "text-muted-foreground/50"
+                        }`}
+                      >
+                        {step.label}
+                      </span>
+                    </div>
+                    {index < PIPELINE_STEPS.length - 1 && (
+                      <div
+                        className={`flex-1 h-px mx-3 mt-[-1rem] ${
+                          getStepState(
+                            PIPELINE_STEPS[index + 1].key,
+                            activeStatus
+                          ) !== "pending"
+                            ? "bg-green-500"
+                            : "bg-muted-foreground/20"
+                        }`}
+                      />
                     )}
                   </div>
-                )}
+                );
+              })}
+            </div>
+            {progress.message && (
+              <p className="text-sm text-muted-foreground text-center">
+                {progress.message}
+              </p>
+            )}
+            {job.errorMessage && activeStatus === "failed" && (
+              <p className="text-sm text-destructive text-center mt-2">
+                {job.errorMessage}
+              </p>
+            )}
+          </CardContent>
+        </Card>
 
-                {activeTab === "youtube" && (
-                  <div>
-                    {job.youtubeScript ? (
-                      <div>
-                        <div className="flex justify-end mb-2">
-                          <button
-                            onClick={() =>
-                              copyToClipboard(job.youtubeScript!, "youtube")
-                            }
-                            className="px-3 py-1 text-xs font-medium rounded bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 transition-colors"
-                          >
-                            {copiedField === "youtube"
-                              ? "Copied!"
-                              : "Copy to Clipboard"}
-                          </button>
+        {/* Content Tabs */}
+        <Tabs defaultValue="article">
+          <TabsList className="mb-4">
+            <TabsTrigger value="article">Article</TabsTrigger>
+            <TabsTrigger value="research">Research</TabsTrigger>
+            <TabsTrigger value="images">Images</TabsTrigger>
+            <TabsTrigger value="meta">Meta</TabsTrigger>
+            <TabsTrigger value="repurpose">Repurpose</TabsTrigger>
+          </TabsList>
+
+          {/* Article Tab */}
+          <TabsContent value="article">
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between">
+                <CardTitle>Article</CardTitle>
+                {job.articleContent && (
+                  <CopyButton text={job.articleContent} label="Copy Markdown" />
+                )}
+              </CardHeader>
+              <CardContent>
+                {job.articleContent ? (
+                  <div className="prose prose-invert max-w-none prose-headings:text-foreground prose-p:text-foreground/80 prose-a:text-primary prose-strong:text-foreground prose-code:text-primary prose-pre:bg-muted prose-pre:text-foreground">
+                    <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                      {job.articleContent}
+                    </ReactMarkdown>
+                  </div>
+                ) : (
+                  <p className="text-muted-foreground">
+                    No article content yet. Run the pipeline to generate.
+                  </p>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* Research Tab */}
+          <TabsContent value="research">
+            <Card>
+              <CardHeader>
+                <CardTitle>Research Brief</CardTitle>
+              </CardHeader>
+              <CardContent>
+                {job.researchBrief ? (
+                  researchData ? (
+                    <div className="space-y-6">
+                      {Object.entries(researchData).map(([key, value]) => (
+                        <div key={key}>
+                          <h3 className="text-sm font-semibold text-foreground mb-2 capitalize">
+                            {key.replace(/([A-Z])/g, " $1").replace(/_/g, " ")}
+                          </h3>
+                          {typeof value === "string" ? (
+                            <p className="text-sm text-muted-foreground">
+                              {value}
+                            </p>
+                          ) : Array.isArray(value) ? (
+                            <ul className="list-disc list-inside space-y-1">
+                              {value.map((item, i) => (
+                                <li
+                                  key={i}
+                                  className="text-sm text-muted-foreground"
+                                >
+                                  {typeof item === "string"
+                                    ? item
+                                    : JSON.stringify(item)}
+                                </li>
+                              ))}
+                            </ul>
+                          ) : (
+                            <pre className="text-sm text-muted-foreground bg-muted p-3 rounded-md overflow-auto">
+                              {JSON.stringify(value, null, 2)}
+                            </pre>
+                          )}
                         </div>
-                        <pre className="whitespace-pre-wrap text-sm text-gray-700 dark:text-gray-300 bg-gray-50 dark:bg-gray-900 rounded-lg p-4 max-h-96 overflow-y-auto">
-                          {job.youtubeScript}
-                        </pre>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="prose prose-invert max-w-none">
+                      <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                        {job.researchBrief}
+                      </ReactMarkdown>
+                    </div>
+                  )
+                ) : (
+                  <p className="text-muted-foreground">
+                    No research data yet. Run the pipeline to generate.
+                  </p>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* Images Tab */}
+          <TabsContent value="images">
+            <Card>
+              <CardHeader>
+                <CardTitle>Images</CardTitle>
+              </CardHeader>
+              <CardContent>
+                {job.thumbnailUrl || parsedImages.length > 0 ? (
+                  <div className="space-y-6">
+                    {job.thumbnailUrl && (
+                      <div>
+                        <h3 className="text-sm font-semibold mb-3">
+                          Thumbnail
+                        </h3>
+                        <div className="relative rounded-lg overflow-hidden border border-border max-w-md">
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img
+                            src={job.thumbnailUrl}
+                            alt="Blog thumbnail"
+                            className="w-full h-auto"
+                          />
+                        </div>
                       </div>
-                    ) : (
-                      <p className="text-sm text-gray-500 dark:text-gray-400">
-                        No YouTube script generated yet. Click the button above
-                        to generate one.
-                      </p>
+                    )}
+                    {parsedImages.length > 0 && (
+                      <div>
+                        <h3 className="text-sm font-semibold mb-3">
+                          In-Blog Images
+                        </h3>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                          {parsedImages.map((img, i) => (
+                            <div
+                              key={i}
+                              className="rounded-lg overflow-hidden border border-border"
+                            >
+                              {/* eslint-disable-next-line @next/next/no-img-element */}
+                              <img
+                                src={img.url}
+                                alt={img.alt ?? `Image ${i + 1}`}
+                                className="w-full h-auto"
+                              />
+                              <div className="p-3 bg-muted">
+                                {img.alt && (
+                                  <p className="text-xs text-muted-foreground">
+                                    {img.alt}
+                                  </p>
+                                )}
+                                {img.caption && (
+                                  <p className="text-xs text-muted-foreground mt-1 italic">
+                                    {img.caption}
+                                  </p>
+                                )}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
                     )}
                   </div>
+                ) : (
+                  <p className="text-muted-foreground">
+                    No images yet. Run the pipeline to generate.
+                  </p>
                 )}
-              </div>
-            </div>
-          )}
-        </section>
+              </CardContent>
+            </Card>
+          </TabsContent>
 
-        {/* Error */}
-        {job.errorMessage && (
-          <section className="bg-red-50 dark:bg-red-900/20 rounded-lg border border-red-200 dark:border-red-800 p-4">
-            <p className="text-sm text-red-700 dark:text-red-400">
-              {job.errorMessage}
-            </p>
-          </section>
-        )}
+          {/* Meta Tab */}
+          <TabsContent value="meta">
+            <Card>
+              <CardHeader>
+                <CardTitle>SEO Metadata</CardTitle>
+              </CardHeader>
+              <CardContent>
+                {job.metaTitle || job.metaDescription || job.urlSlug ? (
+                  <div className="space-y-4">
+                    {job.metaTitle && (
+                      <div className="flex items-start justify-between gap-4 p-4 rounded-lg bg-muted">
+                        <div className="flex-1 min-w-0">
+                          <p className="text-xs text-muted-foreground mb-1">
+                            Meta Title
+                          </p>
+                          <p className="text-sm font-medium">{job.metaTitle}</p>
+                        </div>
+                        <CopyButton text={job.metaTitle} />
+                      </div>
+                    )}
+                    {job.metaDescription && (
+                      <div className="flex items-start justify-between gap-4 p-4 rounded-lg bg-muted">
+                        <div className="flex-1 min-w-0">
+                          <p className="text-xs text-muted-foreground mb-1">
+                            Meta Description
+                          </p>
+                          <p className="text-sm">{job.metaDescription}</p>
+                        </div>
+                        <CopyButton text={job.metaDescription} />
+                      </div>
+                    )}
+                    {job.urlSlug && (
+                      <div className="flex items-start justify-between gap-4 p-4 rounded-lg bg-muted">
+                        <div className="flex-1 min-w-0">
+                          <p className="text-xs text-muted-foreground mb-1">
+                            URL Slug
+                          </p>
+                          <p className="text-sm font-mono">{job.urlSlug}</p>
+                        </div>
+                        <CopyButton text={job.urlSlug} />
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <p className="text-muted-foreground">
+                    No metadata yet. Run the pipeline to generate.
+                  </p>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* Repurpose Tab */}
+          <TabsContent value="repurpose">
+            <Card>
+              <CardHeader>
+                <CardTitle>Repurpose Content</CardTitle>
+              </CardHeader>
+              <CardContent>
+                {!isCompleted && (
+                  <p className="text-muted-foreground mb-4">
+                    Content repurposing is available once the job is completed.
+                  </p>
+                )}
+
+                <div className="flex gap-3 mb-6">
+                  <Button
+                    onClick={handleGenerateLinkedIn}
+                    disabled={!isCompleted || generatingLinkedin}
+                  >
+                    {generatingLinkedin && (
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    )}
+                    {generatingLinkedin
+                      ? "Generating..."
+                      : "Generate LinkedIn Post"}
+                  </Button>
+                  <Button
+                    onClick={handleGenerateYouTube}
+                    disabled={!isCompleted || generatingYoutube}
+                    variant="secondary"
+                  >
+                    {generatingYoutube && (
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    )}
+                    {generatingYoutube
+                      ? "Generating..."
+                      : "Generate YouTube Script"}
+                  </Button>
+                </div>
+
+                {(job.linkedinPost || job.youtubeScript) && (
+                  <Tabs defaultValue={job.linkedinPost ? "linkedin" : "youtube"}>
+                    <TabsList className="mb-4">
+                      <TabsTrigger value="linkedin">LinkedIn Post</TabsTrigger>
+                      <TabsTrigger value="youtube">YouTube Script</TabsTrigger>
+                    </TabsList>
+
+                    <TabsContent value="linkedin">
+                      {job.linkedinPost ? (
+                        <div>
+                          <div className="flex justify-end mb-3">
+                            <CopyButton
+                              text={job.linkedinPost}
+                              label="Copy Post"
+                            />
+                          </div>
+                          <pre className="whitespace-pre-wrap text-sm text-foreground/80 bg-muted rounded-lg p-4 max-h-96 overflow-y-auto">
+                            {job.linkedinPost}
+                          </pre>
+                        </div>
+                      ) : (
+                        <p className="text-muted-foreground">
+                          No LinkedIn post generated yet.
+                        </p>
+                      )}
+                    </TabsContent>
+
+                    <TabsContent value="youtube">
+                      {job.youtubeScript ? (
+                        <div>
+                          <div className="flex justify-end mb-3">
+                            <CopyButton
+                              text={job.youtubeScript}
+                              label="Copy Script"
+                            />
+                          </div>
+                          <pre className="whitespace-pre-wrap text-sm text-foreground/80 bg-muted rounded-lg p-4 max-h-96 overflow-y-auto">
+                            {job.youtubeScript}
+                          </pre>
+                        </div>
+                      ) : (
+                        <p className="text-muted-foreground">
+                          No YouTube script generated yet.
+                        </p>
+                      )}
+                    </TabsContent>
+                  </Tabs>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+        </Tabs>
       </div>
     </div>
-  );
-}
-
-function StatusBadge({ status }: { status: string }) {
-  const styles: Record<string, string> = {
-    idle: "bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300",
-    researching: "bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400",
-    writing: "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400",
-    generating_images: "bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400",
-    generating_meta: "bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-400",
-    generating_thumbnail: "bg-pink-100 text-pink-700 dark:bg-pink-900/30 dark:text-pink-400",
-    completed: "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400",
-    failed: "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400",
-  };
-
-  return (
-    <span
-      className={`px-2 py-0.5 text-xs font-medium rounded-full ${
-        styles[status] || styles.idle
-      }`}
-    >
-      {status.replace(/_/g, " ")}
-    </span>
   );
 }
