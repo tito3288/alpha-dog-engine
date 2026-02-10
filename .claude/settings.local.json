@@ -4,7 +4,12 @@
       "Bash(ls:*)",
       "Bash(npx prisma generate:*)",
       "Bash(npx prisma migrate deploy:*)",
-      "Bash(npm install:*)"
+      "Bash(npm install:*)",
+      "Bash(git add:*)",
+      "Bash(git commit -m \"$\\(cat <<''EOF''\nFix Vercel build error by forcing dynamic rendering for pages with dynamic routes\n\nAdd ''export const dynamic = force-dynamic'' to pages with [brandId] and [jobId] \ndynamic segments. This prevents Next.js from trying to pre-render these pages \nduring build time when the dynamic parameter values are not known.\n\nCo-Authored-By: Claude Sonnet 4.5 <noreply@anthropic.com>\nEOF\n\\)\")",
+      "Bash(git push:*)",
+      "Bash(git commit -m \"$\\(cat <<''EOF''\nAdd dynamic rendering to all API routes with dynamic segments\n\nAdds ''export const dynamic = force-dynamic'' to all API routes with [brandId] \nand [jobId] dynamic parameters. This prevents Next.js from attempting to \npre-render or statically analyze these routes during build, which was causing \nthe \"Failed to collect page data\" error on Vercel.\n\nRoutes updated:\n- /api/brands/[brandId]/optimize\n- /api/brands/[brandId]\n- /api/brands/[brandId]/sitemap-sync\n- /api/jobs/[jobId]\n- /api/jobs/[jobId]/generate\n- /api/jobs/[jobId]/progress\n- /api/jobs/[jobId]/repurpose/linkedin\n- /api/jobs/[jobId]/repurpose/youtube\n\nCo-Authored-By: Claude Sonnet 4.5 <noreply@anthropic.com>\nEOF\n\\)\")",
+      "Bash(git commit:*)"
     ]
   }
 }
