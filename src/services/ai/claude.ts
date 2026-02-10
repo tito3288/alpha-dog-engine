@@ -1,8 +1,11 @@
 import Anthropic from "@anthropic-ai/sdk";
 
-const client = new Anthropic({
-  apiKey: process.env.ANTHROPIC_API_KEY,
-});
+// Lazy initialization to avoid executing during build
+function getClient() {
+  return new Anthropic({
+    apiKey: process.env.ANTHROPIC_API_KEY,
+  });
+}
 
 export async function chatWithClaude(
   prompt: string,
@@ -11,6 +14,7 @@ export async function chatWithClaude(
   console.log("[Claude] Sending request...");
 
   try {
+    const client = getClient();
     const message = await client.messages.create({
       model: "claude-sonnet-4-20250514",
       max_tokens: 4096,

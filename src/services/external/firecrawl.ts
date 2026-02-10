@@ -1,8 +1,11 @@
 import FirecrawlApp from "@mendable/firecrawl-js";
 
-const firecrawl = new FirecrawlApp({
-  apiKey: process.env.FIRECRAWL_API_KEY ?? "",
-});
+// Lazy initialization to avoid executing during build
+function getFirecrawl() {
+  return new FirecrawlApp({
+    apiKey: process.env.FIRECRAWL_API_KEY ?? "",
+  });
+}
 
 export interface ScrapeResult {
   markdown: string;
@@ -16,6 +19,7 @@ export async function scrapeUrl(url: string): Promise<ScrapeResult> {
   console.log(`[Firecrawl] Scraping: ${url}`);
 
   try {
+    const firecrawl = getFirecrawl();
     const result = await firecrawl.scrapeUrl(url, {
       formats: ["markdown", "links"],
     });

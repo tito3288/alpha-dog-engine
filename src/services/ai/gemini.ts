@@ -8,7 +8,10 @@ import {
   type Content,
 } from "@google/generative-ai";
 
-const client = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
+// Lazy initialization to avoid executing during build
+function getClient() {
+  return new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
+}
 
 // --- chatWithGemini ---
 
@@ -16,6 +19,7 @@ export async function chatWithGemini(prompt: string): Promise<string> {
   console.log("[Gemini] Sending chat request...");
 
   try {
+    const client = getClient();
     const model = client.getGenerativeModel({ model: "gemini-2.0-flash" });
     const result = await model.generateContent(prompt);
     const text = result.response.text();
@@ -37,6 +41,7 @@ export async function getStructuredOutput<T>(
   console.log("[Gemini] Sending structured output request...");
 
   try {
+    const client = getClient();
     const model = client.getGenerativeModel({
       model: "gemini-2.0-flash",
       generationConfig: {
@@ -73,6 +78,7 @@ export async function agentLoop(
 
   const toolMap = new Map(tools.map((t) => [t.name, t]));
 
+  const client = getClient();
   const model = client.getGenerativeModel({
     model: "gemini-2.0-flash",
     tools: [

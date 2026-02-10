@@ -1,8 +1,15 @@
 import { fal } from "@fal-ai/client";
 
-fal.config({
-  credentials: process.env.FAL_API_KEY,
-});
+// Lazy initialization to avoid executing during build
+let configured = false;
+function ensureConfigured() {
+  if (!configured) {
+    fal.config({
+      credentials: process.env.FAL_API_KEY,
+    });
+    configured = true;
+  }
+}
 
 interface FalImage {
   url: string;
@@ -26,6 +33,7 @@ export async function generateImage(
   aspectRatio: string = "16:9",
   quality: string = "hd"
 ): Promise<GeneratedImage> {
+  ensureConfigured();
   console.log(`[fal.ai] Generating image: "${prompt.slice(0, 50)}..."`);
 
   try {
