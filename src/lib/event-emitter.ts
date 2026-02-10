@@ -6,6 +6,8 @@ export type JobStatus =
   | "writing"
   | "generating_meta"
   | "generating_thumbnail"
+  | "generating_linkedin"
+  | "generating_youtube"
   | "completed"
   | "failed";
 
