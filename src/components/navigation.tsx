@@ -21,7 +21,7 @@ export function Navigation() {
   return (
     <nav className="border-b bg-card">
       <div className="container mx-auto px-4">
-        <div className="flex h-14 sm:h-16 items-center justify-between">
+        <div className="flex h-20 sm:h-28 items-center justify-between">
           <Link href="/" className="flex items-center shrink-0">
             <Image
               src="/logo.png"
@@ -30,7 +30,7 @@ export function Navigation() {
               height={128}
               quality={100}
               priority
-              className="h-10 w-auto sm:h-16"
+              className="h-16 w-auto sm:h-24"
             />
           </Link>
 
