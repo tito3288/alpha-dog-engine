@@ -136,12 +136,17 @@ export default function JobDetailPage() {
   useEffect(() => {
     if (progress.status === "completed" || progress.status === "failed") {
       fetchJob();
+      setRegenerating(false);
     }
   }, [progress.status, fetchJob]);
 
   // Poll for updates when job is in progress
   useEffect(() => {
     if (!job || ["completed", "failed", "idle"].includes(job.status)) {
+      // Stop regenerating state when job completes or fails
+      if (job && (job.status === "completed" || job.status === "failed")) {
+        setRegenerating(false);
+      }
       return;
     }
 
@@ -158,11 +163,15 @@ export default function JobDetailPage() {
     try {
       const res = await fetch(`/api/jobs/${jobId}/generate`, { method: "POST" });
       if (res.ok) {
+        // Fetch immediately to get the new status
         await fetchJob();
+        // Keep regenerating true - it will be set to false when job completes
+        // Don't set regenerating to false here - let the polling handle it
+      } else {
+        setRegenerating(false);
       }
     } catch (err) {
       console.error("Failed to regenerate:", err);
-    } finally {
       setRegenerating(false);
     }
   };
