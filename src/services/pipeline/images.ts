@@ -33,7 +33,7 @@ type ProgressEvent =
 
 // --- Schema for Gemini structured output ---
 
-const imageSpecsSchema = {
+const imageSpecsSchema: import("@google/generative-ai").ResponseSchema = {
   type: SchemaType.OBJECT,
   properties: {
     specs: {

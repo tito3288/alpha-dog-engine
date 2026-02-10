@@ -21,7 +21,7 @@ type ThumbnailProgressEvent =
 
 // --- Schema for Gemini structured output ---
 
-const metaSchema = {
+const metaSchema: import("@google/generative-ai").ResponseSchema = {
   type: SchemaType.OBJECT,
   properties: {
     metaTitle: {
