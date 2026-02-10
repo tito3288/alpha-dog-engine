@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { enqueueJob } from "@/lib/job-queue";
 
+export const dynamic = 'force-dynamic';
+
 type Params = { params: Promise<{ jobId: string }> };
 
 export async function POST(_request: NextRequest, { params }: Params) {

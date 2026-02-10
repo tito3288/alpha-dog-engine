@@ -3,6 +3,8 @@ import { prisma } from "@/lib/prisma";
 import { chatWithClaude } from "@/services/ai/claude";
 import { jobBroadcaster } from "@/lib/event-emitter";
 
+export const dynamic = 'force-dynamic';
+
 type Params = { params: Promise<{ jobId: string }> };
 
 export async function POST(_request: NextRequest, { params }: Params) {

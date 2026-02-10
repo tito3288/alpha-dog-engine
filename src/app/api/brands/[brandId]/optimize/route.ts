@@ -5,6 +5,8 @@ import { getStructuredOutput, SchemaType } from "@/services/ai/gemini";
 import { searchGoogle } from "@/services/external/serpapi";
 import { chatWithClaude } from "@/services/ai/claude";
 
+export const dynamic = 'force-dynamic';
+
 type Params = { params: Promise<{ brandId: string }> };
 
 export async function POST(request: NextRequest, { params }: Params) {
