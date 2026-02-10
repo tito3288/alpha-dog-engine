@@ -37,7 +37,7 @@ export async function runResearch(
     onProgress?: (event: ProgressEvent) => void;
   }
 ): Promise<ContentBrief> {
-  const { keywords = [], brandId, onProgress } = options;
+  const { keywords = [], onProgress } = options;
 
   const emit = (event: ProgressEvent) => {
     console.log(`[Research] ${event.stage}: ${event.detail}`);
