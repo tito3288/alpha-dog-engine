@@ -108,8 +108,9 @@ export default function JobDetailPage() {
   const [generatingLinkedin, setGeneratingLinkedin] = useState(false);
   const [generatingYoutube, setGeneratingYoutube] = useState(false);
 
+  // Use SSE when job is in progress OR when regenerating (even if status is still "idle")
   const progress = useJobProgress(
-    jobId && job && !["completed", "failed", "idle"].includes(job.status)
+    jobId && job && (!["completed", "failed", "idle"].includes(job.status) || regenerating)
       ? jobId
       : null
   );
@@ -140,9 +141,10 @@ export default function JobDetailPage() {
     }
   }, [progress.status, fetchJob]);
 
-  // Poll for updates when job is in progress
+  // Poll for updates when job is in progress OR when regenerating
   useEffect(() => {
-    if (!job || ["completed", "failed", "idle"].includes(job.status)) {
+    // Don't poll if job is completed/failed and we're not regenerating
+    if (!job || (!regenerating && ["completed", "failed", "idle"].includes(job.status))) {
       // Stop regenerating state when job completes or fails
       if (job && (job.status === "completed" || job.status === "failed")) {
         setRegenerating(false);
@@ -150,12 +152,13 @@ export default function JobDetailPage() {
       return;
     }
 
+    // If regenerating, always poll to catch status changes
     const interval = setInterval(() => {
       fetchJob();
-    }, 3000); // Poll every 3 seconds
+    }, 2000); // Poll every 2 seconds (faster during regeneration)
 
     return () => clearInterval(interval);
-  }, [job, fetchJob]);
+  }, [job, regenerating, fetchJob]);
 
   const handleRegenerate = async () => {
     if (!jobId) return;
