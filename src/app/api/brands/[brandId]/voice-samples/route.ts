@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { scrapeUrl } from "@/services/external/firecrawl";
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const pdfParse = require("pdf-parse");
 
 export const dynamic = "force-dynamic";
 
@@ -41,28 +43,69 @@ export async function POST(request: NextRequest, { params }: Params) {
       );
     }
 
-    const body = await request.json();
+    const contentType = request.headers.get("content-type") || "";
     let newSample: VoiceSample;
 
-    if (body.url) {
-      const scraped = await scrapeUrl(body.url);
-      const content = scraped.markdown.slice(0, 5000);
-      newSample = {
-        sourceUrl: body.url,
-        content,
-        title: scraped.title || undefined,
-      };
-    } else if (body.content) {
-      const content = body.content.slice(0, 5000);
-      newSample = {
-        content,
-        title: body.title || undefined,
-      };
+    if (contentType.includes("multipart/form-data")) {
+      // Handle PDF file upload
+      const formData = await request.formData();
+      const file = formData.get("file") as File | null;
+      if (!file) {
+        return NextResponse.json({ error: "No file provided" }, { status: 400 });
+      }
+
+      const fileName = file.name.toLowerCase();
+      if (!fileName.endsWith(".pdf") && !fileName.endsWith(".txt")) {
+        return NextResponse.json(
+          { error: "Only PDF and TXT files are supported" },
+          { status: 400 }
+        );
+      }
+
+      const buffer = Buffer.from(await file.arrayBuffer());
+      let text: string;
+
+      if (fileName.endsWith(".pdf")) {
+        const parsed = await pdfParse(buffer);
+        text = parsed.text;
+      } else {
+        text = buffer.toString("utf-8");
+      }
+
+      if (!text || text.trim().length === 0) {
+        return NextResponse.json(
+          { error: "Could not extract text from file" },
+          { status: 400 }
+        );
+      }
+
+      const content = text.trim().slice(0, 5000);
+      const title = (formData.get("title") as string) || file.name.replace(/\.(pdf|txt)$/i, "");
+      newSample = { content, title };
     } else {
-      return NextResponse.json(
-        { error: "Either 'url' or 'content' is required" },
-        { status: 400 }
-      );
+      // Handle JSON body (URL import or text paste)
+      const body = await request.json();
+
+      if (body.url) {
+        const scraped = await scrapeUrl(body.url);
+        const content = scraped.markdown.slice(0, 5000);
+        newSample = {
+          sourceUrl: body.url,
+          content,
+          title: scraped.title || undefined,
+        };
+      } else if (body.content) {
+        const content = body.content.slice(0, 5000);
+        newSample = {
+          content,
+          title: body.title || undefined,
+        };
+      } else {
+        return NextResponse.json(
+          { error: "Either 'url', 'content', or a file upload is required" },
+          { status: 400 }
+        );
+      }
     }
 
     samples.push(newSample);

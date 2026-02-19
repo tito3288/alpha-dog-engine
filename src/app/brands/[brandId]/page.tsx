@@ -41,6 +41,7 @@ import {
   ArrowLeft,
   RefreshCw,
   Search,
+  Upload,
 } from "lucide-react";
 
 interface SitemapPage {
@@ -385,6 +386,41 @@ export default function BrandEditPage() {
     }
   }
 
+  async function handleUploadVoiceFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setImportingVoice(true);
+    setMessage(null);
+
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+
+      const res = await fetch(`/api/brands/${brandId}/voice-samples`, {
+        method: "POST",
+        body: formData,
+      });
+
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.error || "Failed to upload file");
+      }
+
+      const result = await res.json();
+      setVoiceSamples(result.samples);
+      setMessage({ type: "success", text: `"${file.name}" uploaded successfully` });
+    } catch (err) {
+      console.error("Voice file upload failed:", err);
+      setMessage({
+        type: "error",
+        text: err instanceof Error ? err.message : "Failed to upload file",
+      });
+    } finally {
+      setImportingVoice(false);
+      e.target.value = "";
+    }
+  }
+
   async function handleDeleteVoiceSample(index: number) {
     setMessage(null);
 
@@ -593,7 +629,7 @@ export default function BrandEditPage() {
               <div>
                 <Label className="text-base font-semibold">Voice Reference Samples</Label>
                 <p className="text-sm text-muted-foreground mb-3">
-                  Add up to 5 writing samples to match the brand&apos;s voice. Import from a URL or paste text directly.
+                  Add up to 5 writing samples to match the brand&apos;s voice. Upload a PDF, import from a URL, or paste text directly.
                 </p>
 
                 {voiceSamples.length > 0 && (
@@ -628,45 +664,92 @@ export default function BrandEditPage() {
 
                 {voiceSamples.length < 5 && (
                   <>
-                    <div className="flex flex-col sm:flex-row gap-2 mb-3">
-                      <Input
-                        value={voiceUrl}
-                        onChange={(e) => setVoiceUrl(e.target.value)}
-                        placeholder="https://example.com/article"
-                        className="flex-1"
-                      />
-                      <Button
-                        onClick={handleImportVoiceUrl}
-                        disabled={importingVoice || !voiceUrl}
-                        className="shrink-0"
-                      >
-                        {importingVoice ? (
-                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                        ) : (
-                          <RefreshCw className="mr-2 h-4 w-4" />
-                        )}
-                        Import URL
-                      </Button>
-                    </div>
-                    <div className="space-y-2">
-                      <Input
-                        value={voiceTitle}
-                        onChange={(e) => setVoiceTitle(e.target.value)}
-                        placeholder="Sample title (optional)"
-                      />
-                      <Textarea
-                        value={voiceText}
-                        onChange={(e) => setVoiceText(e.target.value)}
-                        placeholder="Paste writing sample text here..."
-                        rows={4}
-                      />
-                      <Button
-                        variant="outline"
-                        onClick={handleAddVoiceText}
-                        disabled={importingVoice || !voiceText}
-                      >
-                        Add Text Sample
-                      </Button>
+                    <div className="space-y-3">
+                      <div>
+                        <Label className="text-sm font-medium mb-1 block">Upload a PDF or TXT file</Label>
+                        <div className="flex items-center gap-2">
+                          <Button
+                            variant="outline"
+                            disabled={importingVoice}
+                            className="relative"
+                            asChild
+                          >
+                            <label className="cursor-pointer">
+                              {importingVoice ? (
+                                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                              ) : (
+                                <Upload className="mr-2 h-4 w-4" />
+                              )}
+                              Upload File
+                              <input
+                                type="file"
+                                accept=".pdf,.txt"
+                                className="sr-only"
+                                onChange={handleUploadVoiceFile}
+                                disabled={importingVoice}
+                              />
+                            </label>
+                          </Button>
+                          <span className="text-xs text-muted-foreground">PDF or TXT (from Google Docs: File &rarr; Download &rarr; PDF)</span>
+                        </div>
+                      </div>
+
+                      <div className="relative">
+                        <div className="absolute inset-0 flex items-center"><span className="w-full border-t" /></div>
+                        <div className="relative flex justify-center text-xs uppercase"><span className="bg-card px-2 text-muted-foreground">or</span></div>
+                      </div>
+
+                      <div>
+                        <Label className="text-sm font-medium mb-1 block">Import from URL</Label>
+                        <div className="flex flex-col sm:flex-row gap-2">
+                          <Input
+                            value={voiceUrl}
+                            onChange={(e) => setVoiceUrl(e.target.value)}
+                            placeholder="https://example.com/blog-post"
+                            className="flex-1"
+                          />
+                          <Button
+                            onClick={handleImportVoiceUrl}
+                            disabled={importingVoice || !voiceUrl}
+                            className="shrink-0"
+                          >
+                            {importingVoice ? (
+                              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                            ) : (
+                              <RefreshCw className="mr-2 h-4 w-4" />
+                            )}
+                            Import URL
+                          </Button>
+                        </div>
+                        <p className="text-xs text-muted-foreground mt-1">Works with public web pages and blog posts.</p>
+                      </div>
+
+                      <div className="relative">
+                        <div className="absolute inset-0 flex items-center"><span className="w-full border-t" /></div>
+                        <div className="relative flex justify-center text-xs uppercase"><span className="bg-card px-2 text-muted-foreground">or</span></div>
+                      </div>
+
+                      <div className="space-y-2">
+                        <Label className="text-sm font-medium">Paste text directly</Label>
+                        <Input
+                          value={voiceTitle}
+                          onChange={(e) => setVoiceTitle(e.target.value)}
+                          placeholder="Sample title (optional)"
+                        />
+                        <Textarea
+                          value={voiceText}
+                          onChange={(e) => setVoiceText(e.target.value)}
+                          placeholder="Paste writing sample text here..."
+                          rows={4}
+                        />
+                        <Button
+                          variant="outline"
+                          onClick={handleAddVoiceText}
+                          disabled={importingVoice || !voiceText}
+                        >
+                          Add Text Sample
+                        </Button>
+                      </div>
                     </div>
                   </>
                 )}
