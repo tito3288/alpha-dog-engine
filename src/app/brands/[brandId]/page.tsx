@@ -115,7 +115,6 @@ export default function BrandEditPage() {
     text: string;
   } | null>(null);
   const [voiceSamples, setVoiceSamples] = useState<VoiceSample[]>([]);
-  const [voiceUrl, setVoiceUrl] = useState("");
   const [voiceText, setVoiceText] = useState("");
   const [voiceTitle, setVoiceTitle] = useState("");
   const [importingVoice, setImportingVoice] = useState(false);
@@ -318,38 +317,6 @@ export default function BrandEditPage() {
       });
     } finally {
       setSyncing(false);
-    }
-  }
-
-  async function handleImportVoiceUrl() {
-    if (!voiceUrl) return;
-    setImportingVoice(true);
-    setMessage(null);
-
-    try {
-      const res = await fetch(`/api/brands/${brandId}/voice-samples`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ url: voiceUrl }),
-      });
-
-      if (!res.ok) {
-        const err = await res.json();
-        throw new Error(err.error || "Failed to import voice sample");
-      }
-
-      const result = await res.json();
-      setVoiceSamples(result.samples);
-      setVoiceUrl("");
-      setMessage({ type: "success", text: "Voice sample imported successfully" });
-    } catch (err) {
-      console.error("Voice import failed:", err);
-      setMessage({
-        type: "error",
-        text: err instanceof Error ? err.message : "Failed to import voice sample",
-      });
-    } finally {
-      setImportingVoice(false);
     }
   }
 
@@ -629,7 +596,7 @@ export default function BrandEditPage() {
               <div>
                 <Label className="text-base font-semibold">Voice Reference Samples</Label>
                 <p className="text-sm text-muted-foreground mb-3">
-                  Add up to 5 writing samples to match the brand&apos;s voice. Upload a PDF, import from a URL, or paste text directly.
+                  Add up to 5 writing samples to match the brand&apos;s voice. Upload a PDF or paste text directly.
                 </p>
 
                 {voiceSamples.length > 0 && (
@@ -692,36 +659,6 @@ export default function BrandEditPage() {
                           </Button>
                           <span className="text-xs text-muted-foreground">PDF or TXT (from Google Docs: File &rarr; Download &rarr; PDF)</span>
                         </div>
-                      </div>
-
-                      <div className="relative">
-                        <div className="absolute inset-0 flex items-center"><span className="w-full border-t" /></div>
-                        <div className="relative flex justify-center text-xs uppercase"><span className="bg-card px-2 text-muted-foreground">or</span></div>
-                      </div>
-
-                      <div>
-                        <Label className="text-sm font-medium mb-1 block">Import from URL</Label>
-                        <div className="flex flex-col sm:flex-row gap-2">
-                          <Input
-                            value={voiceUrl}
-                            onChange={(e) => setVoiceUrl(e.target.value)}
-                            placeholder="https://example.com/blog-post"
-                            className="flex-1"
-                          />
-                          <Button
-                            onClick={handleImportVoiceUrl}
-                            disabled={importingVoice || !voiceUrl}
-                            className="shrink-0"
-                          >
-                            {importingVoice ? (
-                              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                            ) : (
-                              <RefreshCw className="mr-2 h-4 w-4" />
-                            )}
-                            Import URL
-                          </Button>
-                        </div>
-                        <p className="text-xs text-muted-foreground mt-1">Works with public web pages and blog posts.</p>
                       </div>
 
                       <div className="relative">
