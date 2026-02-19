@@ -50,6 +50,12 @@ interface SitemapPage {
   lastCrawled: string | null;
 }
 
+interface VoiceSample {
+  sourceUrl?: string;
+  content: string;
+  title?: string;
+}
+
 interface BrandData {
   id: number;
   name: string;
@@ -59,6 +65,7 @@ interface BrandData {
   seoSettings: string | null;
   imageDefaults: string | null;
   internalLinkingConfig: string | null;
+  voiceSamples: string | null;
   sitemapPages: SitemapPage[];
 }
 
@@ -71,10 +78,13 @@ interface FormData {
   preferredPhrases: string;
   phrasesToAvoid: string;
   defaultKeywordCount: number;
-  preferredContentLength: number;
+  minWordCount: number;
+  maxWordCount: number;
   headingStyle: string;
   maxLinksPerArticle: number;
   anchorTextStyle: string;
+  primaryOfferUrl: string;
+  primaryOfferPercent: number;
   preferredImageStyle: string;
   defaultAspectRatio: string;
   brandColors: string;
@@ -103,6 +113,11 @@ export default function BrandEditPage() {
     type: "success" | "error";
     text: string;
   } | null>(null);
+  const [voiceSamples, setVoiceSamples] = useState<VoiceSample[]>([]);
+  const [voiceUrl, setVoiceUrl] = useState("");
+  const [voiceText, setVoiceText] = useState("");
+  const [voiceTitle, setVoiceTitle] = useState("");
+  const [importingVoice, setImportingVoice] = useState(false);
 
   const [form, setForm] = useState<FormData>({
     name: "",
@@ -113,10 +128,13 @@ export default function BrandEditPage() {
     preferredPhrases: "",
     phrasesToAvoid: "",
     defaultKeywordCount: 3,
-    preferredContentLength: 2000,
+    minWordCount: 1500,
+    maxWordCount: 2500,
     headingStyle: "",
     maxLinksPerArticle: 5,
     anchorTextStyle: "",
+    primaryOfferUrl: "",
+    primaryOfferPercent: 50,
     preferredImageStyle: "",
     defaultAspectRatio: "16:9",
     brandColors: "",
@@ -135,6 +153,16 @@ export default function BrandEditPage() {
       const images = parseJsonField(brand.imageDefaults, {} as Record<string, unknown>);
       const linking = parseJsonField(brand.internalLinkingConfig, {} as Record<string, unknown>);
 
+      let parsedVoiceSamples: VoiceSample[] = [];
+      if (brand.voiceSamples) {
+        try {
+          parsedVoiceSamples = JSON.parse(brand.voiceSamples);
+        } catch {
+          parsedVoiceSamples = [];
+        }
+      }
+      setVoiceSamples(parsedVoiceSamples);
+
       setForm({
         name: brand.name,
         website: brand.website,
@@ -148,10 +176,13 @@ export default function BrandEditPage() {
           ? writing.phrasesToAvoid.join(", ")
           : "",
         defaultKeywordCount: (seo.defaultKeywordCount as number) ?? 3,
-        preferredContentLength: (seo.preferredContentLength as number) ?? 2000,
+        minWordCount: (seo.minWordCount as number) ?? (seo.preferredContentLength as number) ?? 1500,
+        maxWordCount: (seo.maxWordCount as number) ?? 2500,
         headingStyle: (seo.headingStyle as string) ?? "",
         maxLinksPerArticle: (linking.maxLinksPerArticle as number) ?? 5,
         anchorTextStyle: (linking.anchorTextStyle as string) ?? "",
+        primaryOfferUrl: (linking.primaryOfferUrl as string) ?? "",
+        primaryOfferPercent: (linking.primaryOfferPercent as number) ?? 50,
         preferredImageStyle: (images.style as string) ?? "",
         defaultAspectRatio: (images.aspectRatio as string) ?? "16:9",
         brandColors: Array.isArray(images.brandColors)
@@ -201,7 +232,8 @@ export default function BrandEditPage() {
         },
         seoSettings: {
           defaultKeywordCount: form.defaultKeywordCount,
-          preferredContentLength: form.preferredContentLength,
+          minWordCount: form.minWordCount,
+          maxWordCount: form.maxWordCount,
           headingStyle: form.headingStyle || undefined,
         },
         imageDefaults: {
@@ -214,10 +246,12 @@ export default function BrandEditPage() {
                 .filter(Boolean)
             : [],
         },
-        internalLinkingConfig: JSON.stringify({
+        internalLinkingConfig: {
           maxLinksPerArticle: form.maxLinksPerArticle,
           anchorTextStyle: form.anchorTextStyle || undefined,
-        }),
+          primaryOfferUrl: form.primaryOfferUrl || undefined,
+          primaryOfferPercent: form.primaryOfferUrl ? form.primaryOfferPercent : undefined,
+        },
       };
 
       const res = await fetch(`/api/brands/${brandId}`, {
@@ -283,6 +317,98 @@ export default function BrandEditPage() {
       });
     } finally {
       setSyncing(false);
+    }
+  }
+
+  async function handleImportVoiceUrl() {
+    if (!voiceUrl) return;
+    setImportingVoice(true);
+    setMessage(null);
+
+    try {
+      const res = await fetch(`/api/brands/${brandId}/voice-samples`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ url: voiceUrl }),
+      });
+
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.error || "Failed to import voice sample");
+      }
+
+      const result = await res.json();
+      setVoiceSamples(result.samples);
+      setVoiceUrl("");
+      setMessage({ type: "success", text: "Voice sample imported successfully" });
+    } catch (err) {
+      console.error("Voice import failed:", err);
+      setMessage({
+        type: "error",
+        text: err instanceof Error ? err.message : "Failed to import voice sample",
+      });
+    } finally {
+      setImportingVoice(false);
+    }
+  }
+
+  async function handleAddVoiceText() {
+    if (!voiceText) return;
+    setImportingVoice(true);
+    setMessage(null);
+
+    try {
+      const res = await fetch(`/api/brands/${brandId}/voice-samples`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ content: voiceText, title: voiceTitle || undefined }),
+      });
+
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.error || "Failed to add voice sample");
+      }
+
+      const result = await res.json();
+      setVoiceSamples(result.samples);
+      setVoiceText("");
+      setVoiceTitle("");
+      setMessage({ type: "success", text: "Voice sample added successfully" });
+    } catch (err) {
+      console.error("Voice add failed:", err);
+      setMessage({
+        type: "error",
+        text: err instanceof Error ? err.message : "Failed to add voice sample",
+      });
+    } finally {
+      setImportingVoice(false);
+    }
+  }
+
+  async function handleDeleteVoiceSample(index: number) {
+    setMessage(null);
+
+    try {
+      const res = await fetch(`/api/brands/${brandId}/voice-samples`, {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ index }),
+      });
+
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.error || "Failed to delete voice sample");
+      }
+
+      const result = await res.json();
+      setVoiceSamples(result.samples);
+      setMessage({ type: "success", text: "Voice sample removed" });
+    } catch (err) {
+      console.error("Voice delete failed:", err);
+      setMessage({
+        type: "error",
+        text: err instanceof Error ? err.message : "Failed to delete voice sample",
+      });
     }
   }
 
@@ -461,6 +587,96 @@ export default function BrandEditPage() {
                   rows={3}
                 />
               </div>
+
+              <Separator className="my-4" />
+
+              <div>
+                <Label className="text-base font-semibold">Voice Reference Samples</Label>
+                <p className="text-sm text-muted-foreground mb-3">
+                  Add up to 5 writing samples to match the brand&apos;s voice. Import from a URL or paste text directly.
+                </p>
+
+                {voiceSamples.length > 0 && (
+                  <div className="space-y-2 mb-4">
+                    {voiceSamples.map((sample, idx) => (
+                      <div key={idx} className="flex items-start gap-2 p-3 border rounded-md bg-muted/50">
+                        <div className="flex-1 min-w-0">
+                          <p className="font-medium text-sm truncate">
+                            {sample.title || `Sample ${idx + 1}`}
+                          </p>
+                          {sample.sourceUrl && (
+                            <p className="text-xs text-muted-foreground truncate">
+                              {sample.sourceUrl}
+                            </p>
+                          )}
+                          <p className="text-xs text-muted-foreground mt-1">
+                            {sample.content.slice(0, 150)}...
+                          </p>
+                        </div>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="shrink-0"
+                          onClick={() => handleDeleteVoiceSample(idx)}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {voiceSamples.length < 5 && (
+                  <>
+                    <div className="flex flex-col sm:flex-row gap-2 mb-3">
+                      <Input
+                        value={voiceUrl}
+                        onChange={(e) => setVoiceUrl(e.target.value)}
+                        placeholder="https://example.com/article"
+                        className="flex-1"
+                      />
+                      <Button
+                        onClick={handleImportVoiceUrl}
+                        disabled={importingVoice || !voiceUrl}
+                        className="shrink-0"
+                      >
+                        {importingVoice ? (
+                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        ) : (
+                          <RefreshCw className="mr-2 h-4 w-4" />
+                        )}
+                        Import URL
+                      </Button>
+                    </div>
+                    <div className="space-y-2">
+                      <Input
+                        value={voiceTitle}
+                        onChange={(e) => setVoiceTitle(e.target.value)}
+                        placeholder="Sample title (optional)"
+                      />
+                      <Textarea
+                        value={voiceText}
+                        onChange={(e) => setVoiceText(e.target.value)}
+                        placeholder="Paste writing sample text here..."
+                        rows={4}
+                      />
+                      <Button
+                        variant="outline"
+                        onClick={handleAddVoiceText}
+                        disabled={importingVoice || !voiceText}
+                      >
+                        Add Text Sample
+                      </Button>
+                    </div>
+                  </>
+                )}
+
+                {voiceSamples.length >= 5 && (
+                  <p className="text-sm text-muted-foreground">
+                    Maximum of 5 voice samples reached. Remove one to add another.
+                  </p>
+                )}
+              </div>
             </CardContent>
           </Card>
         </TabsContent>
@@ -487,24 +703,35 @@ export default function BrandEditPage() {
                   }
                 />
               </div>
-              <div>
-                <Label htmlFor="contentLength">
-                  Preferred Content Length (words)
-                </Label>
-                <Input
-                  id="contentLength"
-                  type="number"
-                  min={500}
-                  max={10000}
-                  step={100}
-                  value={form.preferredContentLength}
-                  onChange={(e) =>
-                    updateForm(
-                      "preferredContentLength",
-                      parseInt(e.target.value) || 2000
-                    )
-                  }
-                />
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label htmlFor="minWordCount">Min Word Count</Label>
+                  <Input
+                    id="minWordCount"
+                    type="number"
+                    min={500}
+                    max={10000}
+                    step={100}
+                    value={form.minWordCount}
+                    onChange={(e) =>
+                      updateForm("minWordCount", parseInt(e.target.value) || 1500)
+                    }
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="maxWordCount">Max Word Count</Label>
+                  <Input
+                    id="maxWordCount"
+                    type="number"
+                    min={500}
+                    max={10000}
+                    step={100}
+                    value={form.maxWordCount}
+                    onChange={(e) =>
+                      updateForm("maxWordCount", parseInt(e.target.value) || 2500)
+                    }
+                  />
+                </div>
               </div>
               <div>
                 <Label>Heading Style</Label>
@@ -573,6 +800,42 @@ export default function BrandEditPage() {
                   </SelectContent>
                 </Select>
               </div>
+
+              <Separator className="my-4" />
+
+              <div>
+                <Label htmlFor="primaryOfferUrl">Primary Offer URL</Label>
+                <Input
+                  id="primaryOfferUrl"
+                  value={form.primaryOfferUrl}
+                  onChange={(e) => updateForm("primaryOfferUrl", e.target.value)}
+                  placeholder="/your-primary-offer-page"
+                />
+                <p className="text-xs text-muted-foreground mt-1">
+                  The main landing page that should receive the majority of internal links.
+                </p>
+              </div>
+
+              {form.primaryOfferUrl && (
+                <div>
+                  <Label htmlFor="primaryOfferPercent">
+                    Primary Offer Link Percentage ({form.primaryOfferPercent}%)
+                  </Label>
+                  <Input
+                    id="primaryOfferPercent"
+                    type="number"
+                    min={0}
+                    max={100}
+                    value={form.primaryOfferPercent}
+                    onChange={(e) =>
+                      updateForm("primaryOfferPercent", parseInt(e.target.value) || 50)
+                    }
+                  />
+                  <p className="text-xs text-muted-foreground mt-1">
+                    {form.primaryOfferPercent}% of links to primary offer, {100 - form.primaryOfferPercent}% distributed across other sitemap pages.
+                  </p>
+                </div>
+              )}
             </CardContent>
           </Card>
         </TabsContent>

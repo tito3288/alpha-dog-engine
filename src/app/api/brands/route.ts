@@ -48,7 +48,9 @@ export async function POST(request: NextRequest) {
         imageDefaults: body.imageDefaults
           ? JSON.stringify(body.imageDefaults)
           : null,
-        internalLinkingConfig: body.internalLinkingConfig ?? null,
+        internalLinkingConfig: body.internalLinkingConfig
+          ? JSON.stringify(body.internalLinkingConfig)
+          : null,
       },
     });
 

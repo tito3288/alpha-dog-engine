@@ -9,6 +9,9 @@ interface Brand {
   website: string;
   description?: string | null;
   writingPreferences?: string | null;
+  voiceSamples?: string | null;
+  seoSettings?: string | null;
+  internalLinkingConfig?: string | null;
 }
 
 interface SitemapPage {
@@ -20,11 +23,13 @@ type ProgressEvent =
   | { type: "writing"; message: string }
   | { type: "complete"; wordCount: number };
 
-// --- Claude client ---
+// --- Claude client (lazy init to avoid build-time execution) ---
 
-const client = new Anthropic({
-  apiKey: process.env.ANTHROPIC_API_KEY,
-});
+function getClient() {
+  return new Anthropic({
+    apiKey: process.env.ANTHROPIC_API_KEY,
+  });
+}
 
 // --- Main function ---
 
@@ -51,11 +56,48 @@ export async function writeArticle(
     }
   }
 
-  const systemPrompt = buildSystemPrompt(brand, writingPrefs, images, sitemapPages);
-  const userPrompt = buildUserPrompt(researchBrief);
+  // Parse voice samples
+  let voiceSamples: { content: string; title?: string; sourceUrl?: string }[] = [];
+  if (brand.voiceSamples) {
+    try {
+      voiceSamples = typeof brand.voiceSamples === "string"
+        ? JSON.parse(brand.voiceSamples)
+        : brand.voiceSamples;
+    } catch {
+      voiceSamples = [];
+    }
+  }
+
+  // Parse SEO settings
+  let seoSettings: Record<string, unknown> = {};
+  if (brand.seoSettings) {
+    try {
+      seoSettings = typeof brand.seoSettings === "string"
+        ? JSON.parse(brand.seoSettings)
+        : brand.seoSettings;
+    } catch {
+      seoSettings = {};
+    }
+  }
+
+  // Parse internal linking config
+  let linkingConfig: Record<string, unknown> = {};
+  if (brand.internalLinkingConfig) {
+    try {
+      linkingConfig = typeof brand.internalLinkingConfig === "string"
+        ? JSON.parse(brand.internalLinkingConfig)
+        : brand.internalLinkingConfig;
+    } catch {
+      linkingConfig = {};
+    }
+  }
+
+  const systemPrompt = buildSystemPrompt(brand, writingPrefs, voiceSamples, seoSettings, linkingConfig, images, sitemapPages);
+  const userPrompt = buildUserPrompt(researchBrief, seoSettings);
 
   onProgress?.({ type: "writing", message: "Writing article with Claude..." });
 
+  const client = getClient();
   const message = await client.messages.create({
     model: "claude-sonnet-4-20250514",
     max_tokens: 16384,
@@ -84,6 +126,9 @@ export async function writeArticle(
 function buildSystemPrompt(
   brand: Brand,
   writingPrefs: Record<string, unknown>,
+  voiceSamples: { content: string; title?: string; sourceUrl?: string }[],
+  seoSettings: Record<string, unknown>,
+  linkingConfig: Record<string, unknown>,
   images: ArticleImage[],
   sitemapPages: SitemapPage[]
 ): string {
@@ -102,6 +147,20 @@ ${JSON.stringify(writingPrefs, null, 2)}`
       : `## Writing Voice & Tone
 Write in a clear, professional, and engaging tone.`;
 
+  const voiceSamplesSection =
+    voiceSamples.length > 0
+      ? `## Voice Reference Samples
+Study the following writing samples carefully. Match the writing style, tone, sentence structure, vocabulary choices, and overall feel — then write the article in a similar voice.
+
+${voiceSamples
+  .map(
+    (s, i) =>
+      `### Sample ${i + 1}${s.title ? ` — ${s.title}` : ""}
+${s.content.slice(0, 2000)}`
+  )
+  .join("\n\n")}`
+      : "";
+
   const imageSection =
     images.length > 0
       ? `## Images to Embed
@@ -118,22 +177,49 @@ ${img.caption ? `- Caption: *${img.caption}*` : ""}`
   .join("\n\n")}`
       : "";
 
-  const linkingSection =
-    sitemapPages.length > 0
-      ? `## Internal Linking
-Include internal links to relevant pages from the brand's site. Use natural anchor text — do not force links. Only link where it genuinely adds value for the reader.
+  // Build internal linking section with distribution logic
+  const primaryOfferUrl = linkingConfig.primaryOfferUrl as string | undefined;
+  const primaryOfferPercent = (linkingConfig.primaryOfferPercent as number) || 50;
+  const maxLinks = (linkingConfig.maxLinksPerArticle as number) || 5;
 
-Available pages:
-${sitemapPages
-  .map((page) => `- [${page.title || page.url}](${page.url})`)
-  .join("\n")}`
-      : "";
+  let linkingSection = "";
+  if (sitemapPages.length > 0 || primaryOfferUrl) {
+    const primaryLinkCount = primaryOfferUrl
+      ? Math.round(maxLinks * primaryOfferPercent / 100)
+      : 0;
+    const otherLinkCount = maxLinks - primaryLinkCount;
+
+    let linkInstructions = `## Internal Linking
+Include up to ${maxLinks} internal links total. Use natural anchor text — do not force links. Only link where it genuinely adds value for the reader.\n`;
+
+    if (primaryOfferUrl) {
+      linkInstructions += `\n**Primary Offer Page:** Link to ${primaryOfferUrl} approximately ${primaryLinkCount} time(s). This is the brand's main offer/service page — weave links to it naturally where relevant.\n`;
+    }
+
+    if (sitemapPages.length > 0 && otherLinkCount > 0) {
+      linkInstructions += `\n**Other Pages (up to ${otherLinkCount} links):** Distribute remaining links across these relevant pages:\n${sitemapPages
+        .map((page) => `- [${page.title || page.url}](${page.url})`)
+        .join("\n")}`;
+    }
+
+    linkingSection = linkInstructions;
+  }
+
+  // Word count instruction
+  const minWords = (seoSettings.minWordCount as number) || 0;
+  const maxWords = (seoSettings.maxWordCount as number) || 0;
+  const wordCountGuideline =
+    minWords && maxWords
+      ? `- Target article length: ${minWords} to ${maxWords} words. Aim for comprehensive coverage within this range.`
+      : "- Write a comprehensive article of appropriate length for the topic.";
 
   return `You are an expert SEO content writer. Write a comprehensive, high-quality article based on the research brief provided.
 
 ${brandSection}
 
 ${voiceSection}
+
+${voiceSamplesSection}
 
 ${imageSection}
 
@@ -146,15 +232,23 @@ ${linkingSection}
 - Write in markdown format.
 - Make the content substantive and valuable — avoid fluff and filler.
 - Incorporate "People Also Ask" questions naturally as sections or within the content.
+${wordCountGuideline}
 - Output ONLY the article markdown. Do not include any meta commentary, preamble, or notes.`;
 }
 
-function buildUserPrompt(brief: ContentBrief): string {
+function buildUserPrompt(brief: ContentBrief, seoSettings: Record<string, unknown>): string {
+  const minWords = (seoSettings.minWordCount as number) || 0;
+  const maxWords = (seoSettings.maxWordCount as number) || 0;
+  const wordCountLine =
+    minWords && maxWords
+      ? `**Target Word Count:** ${minWords} to ${maxWords} words`
+      : `**Target Word Count:** ${brief.targetWordCount} words`;
+
   return `Write an article based on this research brief:
 
 **Search Intent:** ${brief.searchIntent}
 
-**Target Word Count:** ${brief.targetWordCount} words
+${wordCountLine}
 
 **Recommended Structure:**
 ${brief.recommendedStructure

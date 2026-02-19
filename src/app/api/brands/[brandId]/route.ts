@@ -53,7 +53,7 @@ export async function PUT(request: NextRequest, { params }: Params) {
     if (body.imageDefaults !== undefined)
       data.imageDefaults = JSON.stringify(body.imageDefaults);
     if (body.internalLinkingConfig !== undefined)
-      data.internalLinkingConfig = body.internalLinkingConfig;
+      data.internalLinkingConfig = JSON.stringify(body.internalLinkingConfig);
 
     const brand = await prisma.brand.update({
       where: { id },

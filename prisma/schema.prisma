@@ -27,6 +27,7 @@ model Brand {
   seoSettings         String?
   imageDefaults       String?
   internalLinkingConfig String?
+  voiceSamples          String?
   createdAt           DateTime @default(now())
   updatedAt           DateTime @updatedAt
 
